@@ -1,0 +1,1 @@
+print('Poster worker placeholder')
