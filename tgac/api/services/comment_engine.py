@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Callable, Iterable
 
 from sqlalchemy.orm import Session
@@ -23,6 +24,8 @@ from ..models.core import (
     TaskMode,
     TaskStatus,
 )
+from ..utils.event_log import CommentEventLogger, JsonlEventLogger
+from ..utils.settings import get_settings
 
 TemplateRenderer = Callable[[Task, Post, Account], str]
 
@@ -63,12 +66,16 @@ class CommentEngine:
     db: Session
     renderer: TemplateRenderer | None = None
     sender: SendCallback | None = None
+    event_logger: CommentEventLogger | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial defaults
         if self.renderer is None:
             self.renderer = self._default_renderer
         if self.sender is None:
             self.sender = self._default_sender
+        if self.event_logger is None:
+            settings = get_settings()
+            self.event_logger = JsonlEventLogger(Path(settings.events_log_path))
 
     # ------------------------------------------------------------------
     # Public API
@@ -177,6 +184,9 @@ class CommentEngine:
         for comment in created:
             self.db.refresh(comment)
 
+        for comment in created:
+            self.event_logger.comment_planned(comment)
+
         return created
 
     def send_comment(self, comment_id: int) -> SendResult:
@@ -197,6 +207,8 @@ class CommentEngine:
 
         self.db.commit()
         self.db.refresh(comment)
+
+        self.event_logger.comment_sent(comment)
 
         return outcome
 

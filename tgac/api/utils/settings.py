@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     worker_shard: int = Field(0, env="WORKER_SHARD")
     max_concurrency: int = Field(10, env="MAX_CONCURRENCY")
     log_level: str = Field("INFO", env="LOG_LEVEL")
+    events_log_path: str = Field("tgac/logs/events.jsonl", env="EVENTS_LOG_PATH")
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
