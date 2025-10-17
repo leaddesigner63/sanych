@@ -97,7 +97,7 @@ def _assignment_response(task_id: int, summary: AssignmentSummary) -> TaskAssign
 def assign_accounts(task_id: int, payload: TaskAssignRequest, db: Session = Depends(get_db)) -> DataResponse:
     service = TaskService(db)
     try:
-        summary = service.assign_accounts(task_id, payload.account_ids)
+        summary = service.assign_accounts(task_id, payload.account_ids, payload.filters or None)
     except TaskServiceError as exc:  # pragma: no cover - FastAPI handles in runtime
         raise _handle_service_error(exc)
     response = _assignment_response(task_id, summary)
