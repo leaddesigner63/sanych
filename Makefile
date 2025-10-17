@@ -7,41 +7,41 @@ ENV_FILE?=.env
 .PHONY: setup dev migrate alembic fmt lint test worker scheduler observer bot
 
 setup:
-$(PIP) install -U pip
-$(PIP) install -r requirements.txt
+	$(PIP) install -U pip
+	$(PIP) install -r requirements.txt
 
 migrate:
-$(PYTHON) -m alembic upgrade head
+	$(PYTHON) -m alembic upgrade head
 
 alembic:
-$(PYTHON) -m alembic revision --autogenerate -m "update"
+	$(PYTHON) -m alembic revision --autogenerate -m "update"
 
 dev:
-$(PYTHON) -m uvicorn tgac.api.main:app --host 0.0.0.0 --port 8080 --reload
+	$(PYTHON) -m uvicorn tgac.api.main:app --host 0.0.0.0 --port 8080 --reload
 
 worker:
-$(PYTHON) -m tgac.workers.worker
+	$(PYTHON) -m tgac.workers.worker
 
 scheduler:
-$(PYTHON) -m tgac.workers.scheduler
+	$(PYTHON) -m tgac.workers.scheduler
 
 observer:
-$(PYTHON) -m tgac.workers.observer
+	$(PYTHON) -m tgac.workers.observer
 
 bot:
-$(PYTHON) -m tgac.bot.app
+	$(PYTHON) -m tgac.bot.app
 
 fmt:
-$(PYTHON) -m black tgac tests
-$(PYTHON) -m isort tgac tests
+	$(PYTHON) -m black tgac tests
+	$(PYTHON) -m isort tgac tests
 
 lint:
-$(PYTHON) -m ruff check tgac tests
+	$(PYTHON) -m ruff check tgac tests
 
 lint-fix:
-$(PYTHON) -m ruff check tgac tests --fix
+	$(PYTHON) -m ruff check tgac tests --fix
 
 check: fmt lint test
 
 test:
-$(PYTHON) -m pytest -q
+	$(PYTHON) -m pytest -q
