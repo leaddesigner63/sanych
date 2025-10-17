@@ -1,1 +1,0 @@
-print('Poster worker placeholder')

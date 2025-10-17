@@ -1,10 +1,27 @@
+# TG Commenting Combiner (TGAC)
 
-# tg-commenter (MVP)
+Этот репозиторий содержит каркас SaaS-платформы «TG-Комбайн для автокомментинга». Репозиторий включает сервисы FastAPI с Jinja2/HTMX UI, Telegram-бота, планировщик и воркеры, миграции, конфигурацию Nginx/systemd и вспомогательные скрипты для развёртывания.
 
-Проект для мониторинга каналов/обсуждений в Telegram и "человечных" комментариев от отдельных аккаунтов.
-Стек: FastAPI, PostgreSQL, Redis, Telethon, Docker.
+## Структура
+
+- `tgac/api` — приложение FastAPI с HTMX-интерфейсом, SQLAlchemy-моделями и бизнес-логикой.
+- `tgac/workers` — процессы планировщика, воркера и наблюдателя очереди задач.
+- `tgac/bot` — Telegram-бот на aiogram для авторизации и уведомлений.
+- `tgac/migrations` — Alembic-конфигурация и базовая миграция схемы данных.
+- `tgac/scripts` — конфигурации Nginx, systemd и скрипты управления.
+- `tgac/data` — SQLite база и директория для Telethon-сессий.
+- `tgac/logs` — каталоги для логов приложения и событий.
+- `tests` — базовые автоматические тесты.
 
 ## Быстрый старт
-1. Скопируй `.env.example` в `.env` и заполни значения.
-2. `docker compose -f infra/docker-compose.yml --env-file infra/.env up --build -d`
-3. API: http://localhost:8000/docs
+
+1. Создайте и заполните `.env` на основе `.env.example`.
+2. Установите зависимости: `make setup` (используется `requirements.txt`).
+3. Выполните миграции БД: `make migrate`.
+4. Запустите API и UI: `make dev`. При необходимости запустите фоновые сервисы `make scheduler`, `make worker`, `make observer`, `make bot`.
+
+Дополнительные команды смотрите в `Makefile`.
+
+## Лицензия
+
+Проект распространяется по лицензии MIT, текст доступен в файле `LICENSE`.
