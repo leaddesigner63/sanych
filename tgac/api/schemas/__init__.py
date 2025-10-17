@@ -32,6 +32,7 @@ from .tasks import (
     TaskStatsResponse,
     TaskUpdateRequest,
 )
+from .projects import ProjectCreateRequest, ProjectResponse, ProjectUpdateRequest
 from .settings import SettingOverride, SettingUpdateRequest, SettingsResponse
 
 __all__ = [
@@ -59,6 +60,9 @@ __all__ = [
     "SettingOverride",
     "SettingUpdateRequest",
     "SettingsResponse",
+    "ProjectCreateRequest",
+    "ProjectUpdateRequest",
+    "ProjectResponse",
     "TaskAssignRequest",
     "TaskAssignResponse",
     "TaskCreateRequest",
