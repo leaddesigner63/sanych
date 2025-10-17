@@ -8,6 +8,8 @@ from .routers import (
     accounts,
     auth,
     channels,
+    exports,
+    history,
     logs,
     playlists,
     projects,
@@ -36,6 +38,8 @@ def include_routers(application: FastAPI) -> None:
         playlists.router,
         tasks.router,
         logs.router,
+        history.router,
+        exports.router,
     ]:
         application.include_router(router)
 
