@@ -1,6 +1,7 @@
 """Service layer entrypoints."""
 
+from .accounts import AccountService
 from .auth_flow import AuthService
 from .scheduler_core import SchedulerCore
 
-__all__ = ["AuthService", "SchedulerCore"]
+__all__ = ["AccountService", "AuthService", "SchedulerCore"]
