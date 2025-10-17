@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     max_channels_per_account: int = Field(50, env="MAX_CHANNELS_PER_ACCOUNT")
     comment_collision_limit_per_post: int = Field(1, env="COMMENT_COLLISION_LIMIT_PER_POST")
     max_active_threads_per_account: int = Field(50, env="MAX_ACTIVE_THREADS_PER_ACCOUNT")
+    comment_visibility_stale_minutes: int = Field(5, env="COMMENT_VISIBILITY_STALE_MINUTES")
 
     worker_shards: int = Field(1, env="WORKER_SHARDS")
     worker_shard: int = Field(0, env="WORKER_SHARD")
