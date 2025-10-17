@@ -2,6 +2,7 @@
 
 from .accounts import AccountService
 from .auth_flow import AuthService
+from .autoreg import AutoRegService
 from .channels import ChannelService
 from .comment_engine import CommentEngine
 from .export import ExportService
@@ -15,6 +16,7 @@ from .tasks import TaskService
 __all__ = [
     "AccountService",
     "AuthService",
+    "AutoRegService",
     "ChannelService",
     "CommentEngine",
     "ExportService",
