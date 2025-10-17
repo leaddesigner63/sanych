@@ -1,1 +1,0 @@
-print('Monitor worker placeholder')

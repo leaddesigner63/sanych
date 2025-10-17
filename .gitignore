@@ -1,4 +1,13 @@
 __pycache__/
-.env
 *.pyc
-node_modules/
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+logs/*.log
+logs/*.jsonl
+tgac/logs/*.log
+tgac/logs/*.jsonl

@@ -1,3 +1,0 @@
-FROM python:3.11-slim
-COPY poster_worker.py .
-CMD ["python","poster_worker.py"]
