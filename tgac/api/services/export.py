@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass
 from datetime import datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Any
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -21,6 +22,7 @@ from ..models.core import (
     Task,
     TaskAssignment,
 )
+from .metrics import MetricsService, ProjectMetric
 
 
 def _serialize_datetime(value: datetime | None) -> str | None:
@@ -54,7 +56,12 @@ class ExportService:
         buffer = BytesIO()
         with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
             for name, data in payload.items():
-                archive.writestr(name, json.dumps(data, ensure_ascii=False, indent=2))
+                if isinstance(data, bytes):
+                    archive.writestr(name, data)
+                elif isinstance(data, str):
+                    archive.writestr(name, data.encode("utf-8"))
+                else:
+                    archive.writestr(name, json.dumps(data, ensure_ascii=False, indent=2))
         buffer.seek(0)
         return buffer.read()
 
@@ -245,7 +252,28 @@ class ExportService:
             for comment in comments
         ]
 
+        metrics_service = MetricsService(self.db)
+        metrics = metrics_service.collect_project_metrics(project_id)
+        payload["metrics.csv"] = self._metrics_to_csv(metrics)
+
         return payload
+
+    @staticmethod
+    def _metrics_to_csv(metrics: list[ProjectMetric]) -> str:
+        buffer = StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=["key", "value", "description"])
+        writer.writeheader()
+        for metric in metrics:
+            row = metric.as_dict()
+            value = row["value"]
+            writer.writerow(
+                {
+                    "key": row["key"],
+                    "value": "" if value is None else value,
+                    "description": row["description"],
+                }
+            )
+        return buffer.getvalue()
 
 
 __all__ = [

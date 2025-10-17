@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 from io import BytesIO
+import csv
 from zipfile import ZipFile
 
 import pytest
@@ -179,6 +180,7 @@ def test_export_service_creates_zip_archive():
             "playlists.json",
             "tasks.json",
             "comments.json",
+            "metrics.csv",
         }.issubset(names)
 
         project_data = json.loads(archive.read("project.json"))
@@ -192,6 +194,11 @@ def test_export_service_creates_zip_archive():
 
         comments_data = json.loads(archive.read("comments.json"))
         assert {entry["post_id"] for entry in comments_data} == {comment.post_id}
+
+        metrics_reader = csv.DictReader(archive.read("metrics.csv").decode("utf-8").splitlines())
+        metrics_rows = {row["key"]: row["value"] for row in metrics_reader}
+        assert metrics_rows["comments_total"] == "1"
+        assert metrics_rows["accounts_total"] == "1"
     finally:
         session.close()
 
