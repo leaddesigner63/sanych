@@ -4,11 +4,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tgac.api.models import core  # noqa: F401
 from tgac.api.models.base import Base
 from tgac.api.models.core import Account, AccountStatus, Project, Proxy, ProxyScheme, User
-from tgac.api.services.accounts import (
-    AccountService,
-    ProxyLimitExceeded,
-    ProjectMismatch,
-)
+from tgac.api.services.accounts import AccountImportData, AccountService, ProxyLimitExceeded, ProjectMismatch
 
 
 def setup_module(module):
@@ -104,5 +100,68 @@ def test_assign_proxy_requires_same_project():
             session.rollback()
         else:  # pragma: no cover - sanity branch
             raise AssertionError("Project mismatch should raise an error")
+    finally:
+        session.close()
+
+
+def test_import_accounts_skips_duplicates_and_existing():
+    session = TestingSession()
+    try:
+        _, project, _ = make_fixtures(session, "import")
+        service = AccountService(session)
+
+        make_account(session, project.id, "+30000000001")
+
+        summary = service.import_accounts(
+            project.id,
+            [
+                AccountImportData(phone="+30000000001", status=AccountStatus.ACTIVE),
+                AccountImportData(phone="+30000000002", tags="vip"),
+                AccountImportData(phone="+30000000002"),
+            ],
+        )
+
+        assert [account.phone for account in summary.created] == ["+30000000002"]
+        assert summary.skipped == ["+30000000001", "+30000000002"]
+    finally:
+        session.close()
+
+
+def test_record_healthcheck_updates_status_and_notes():
+    session = TestingSession()
+    try:
+        _, project, _ = make_fixtures(session, "health")
+        service = AccountService(session)
+
+        account = make_account(session, project.id, "+40000000001")
+        assert account.last_health_at is None
+
+        updated = service.record_healthcheck(
+            account.id,
+            status=AccountStatus.ACTIVE,
+            notes="ok",
+        )
+
+        assert updated.last_health_at is not None
+        assert updated.status == AccountStatus.ACTIVE
+        assert updated.notes == "ok"
+    finally:
+        session.close()
+
+
+def test_set_paused_toggles_flag():
+    session = TestingSession()
+    try:
+        _, project, _ = make_fixtures(session, "pause")
+        service = AccountService(session)
+
+        account = make_account(session, project.id, "+50000000001")
+        assert account.is_paused is False
+
+        paused = service.set_paused(account.id, True)
+        assert paused.is_paused is True
+
+        resumed = service.set_paused(account.id, False)
+        assert resumed.is_paused is False
     finally:
         session.close()
