@@ -32,6 +32,7 @@ from tgac.api.models.core import (
 )
 from tgac.api.services.export import ExportService, ProjectNotFound
 from tgac.api.services.history import AccountNotFound, HistoryService, TaskNotFound
+from tgac.api.utils.time import utcnow
 
 
 def setup_module(module):
@@ -75,8 +76,8 @@ def create_project_with_entities(session: Session, *, suffix: str | None = None)
         proxy_id=proxy.id,
         tags="vip",
         notes="checked",
-        last_health_at=datetime.utcnow() - timedelta(hours=1),
-        last_comment_at=datetime.utcnow() - timedelta(minutes=30),
+        last_health_at=utcnow() - timedelta(hours=1),
+        last_comment_at=utcnow() - timedelta(minutes=30),
     )
     session.add(account)
     session.flush()
@@ -111,8 +112,8 @@ def create_project_with_entities(session: Session, *, suffix: str | None = None)
         channel_id=channel.id,
         post_id=42,
         result=CommentResult.SUCCESS,
-        sent_at=datetime.utcnow(),
-        planned_at=datetime.utcnow() - timedelta(minutes=5),
+        sent_at=utcnow(),
+        planned_at=utcnow() - timedelta(minutes=5),
         template="Hi",
         rendered="Hi there",
     )

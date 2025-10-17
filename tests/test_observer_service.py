@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from tgac.api.models.base import Base
 from tgac.api.models.core import Account, Channel, Comment, CommentResult, Project, Task, User
 from tgac.api.services.observer import ObserverService
+from tgac.api.utils.time import utcnow
 
 
 def setup_module(module):
@@ -62,10 +63,10 @@ def _create_comment(
         task_id=task.id,
         post_id=10_000 + post_suffix,
         result=CommentResult.SUCCESS,
-        sent_at=datetime.utcnow() - sent_delta,
+        sent_at=utcnow() - sent_delta,
     )
     if visibility_delta is not None:
-        comment.visibility_checked_at = datetime.utcnow() - visibility_delta
+        comment.visibility_checked_at = utcnow() - visibility_delta
         comment.visible = True
     session.add(comment)
     session.commit()

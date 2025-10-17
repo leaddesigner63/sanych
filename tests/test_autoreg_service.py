@@ -26,6 +26,7 @@ from tgac.api.services.autoreg import (
     SmsCode,
 )
 from tgac.api.services.scheduler_core import SchedulerCore
+from tgac.api.utils.time import utcnow
 
 
 if "SESSION_SECRET_KEY" not in os.environ:
@@ -147,7 +148,7 @@ def test_wait_for_code_without_sms_requeues_job():
                 "metadata": {},
                 "attempts": 0,
             },
-            run_after=datetime.utcnow(),
+            run_after=utcnow(),
         )
         session.add(job)
         session.commit()
@@ -193,7 +194,7 @@ def test_wait_for_code_creates_account_and_marks_finished():
                 "metadata": {"tags": "warm", "notes": "autoreg"},
                 "attempts": 0,
             },
-            run_after=datetime.utcnow(),
+            run_after=utcnow(),
         )
         session.add(job)
         session.commit()
@@ -254,7 +255,7 @@ def test_wait_for_code_raises_when_phone_in_other_project():
                 "metadata": {},
                 "attempts": 0,
             },
-            run_after=datetime.utcnow(),
+            run_after=utcnow(),
         )
         session.add(job)
         session.commit()

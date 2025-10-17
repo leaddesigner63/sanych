@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models.core import Comment, CommentResult
+from ..utils.time import utcnow
 
 VisibilityProbe = Callable[[Comment], bool]
 
@@ -26,7 +27,7 @@ class ObserverService:
     def pending_comments(self) -> list[Comment]:
         """Return a batch of comments that require visibility checks."""
 
-        threshold = datetime.utcnow() - self.stale_after
+        threshold = utcnow() - self.stale_after
         query = (
             self.db.query(Comment)
             .filter(Comment.result == CommentResult.SUCCESS)
@@ -49,7 +50,7 @@ class ObserverService:
         if not comments:
             return 0
 
-        now = datetime.utcnow()
+        now = utcnow()
         processed = 0
         for comment in comments:
             is_visible = self.probe(comment)

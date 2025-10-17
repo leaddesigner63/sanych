@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -25,6 +24,7 @@ from ..models.core import (
     TaskStatus,
 )
 from ..utils.event_log import CommentEventLogger, JsonlEventLogger
+from ..utils.time import utcnow
 from ..utils.settings import get_settings
 
 TemplateRenderer = Callable[[Task, Post, Account], str]
@@ -141,7 +141,7 @@ class CommentEngine:
         }
 
         created: list[Comment] = []
-        now = datetime.utcnow()
+        now = utcnow()
 
         for assignment, account in assignments:
             if account.status != AccountStatus.ACTIVE or account.is_paused:
@@ -198,7 +198,7 @@ class CommentEngine:
 
         outcome = self.sender(comment)
 
-        comment.sent_at = datetime.utcnow()
+        comment.sent_at = utcnow()
         comment.result = outcome.result
         if outcome.rendered is not None:
             comment.rendered = outcome.rendered

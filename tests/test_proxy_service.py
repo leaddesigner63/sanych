@@ -16,6 +16,7 @@ from tgac.api.services.proxies import (
     ProxyNotFound,
     ProxyService,
 )
+from tgac.api.utils.time import utcnow
 
 
 def setup_module(module):
@@ -139,13 +140,13 @@ def test_record_check_updates_state_and_timestamp():
             project.id,
             "gamma",
             is_working=False,
-            last_check_at=datetime.utcnow() - timedelta(days=1),
+            last_check_at=utcnow() - timedelta(days=1),
         )
 
         updated = service.record_check(proxy.id, is_working=True)
         assert updated.is_working is True
         assert updated.last_check_at is not None
-        assert updated.last_check_at >= datetime.utcnow() - timedelta(seconds=5)
+        assert updated.last_check_at >= utcnow() - timedelta(seconds=5)
 
         with pytest.raises(ProxyNotFound):
             service.record_check(proxy.id + 999, is_working=False)

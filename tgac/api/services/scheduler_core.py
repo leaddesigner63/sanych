@@ -15,6 +15,7 @@ from ..models.core import (
     JobType,
     Post,
 )
+from ..utils.time import utcnow
 from ..utils.settings import get_settings
 
 
@@ -28,7 +29,7 @@ class SchedulerCore:
             self.comment_collision_limit = get_settings().comment_collision_limit_per_post
 
     def enqueue(self, job_type: JobType, payload: dict, run_after: datetime | None = None, priority: int = 0) -> Job:
-        job = Job(type=job_type, payload=payload, run_after=run_after or datetime.utcnow(), priority=priority)
+        job = Job(type=job_type, payload=payload, run_after=run_after or utcnow(), priority=priority)
         self.db.add(job)
         self.db.commit()
         self.db.refresh(job)
@@ -46,14 +47,14 @@ class SchedulerCore:
     def pick_next_job(self, worker_id: str) -> Job | None:
         job = (
             self.db.query(Job)
-            .filter(Job.status == JobStatus.PENDING, Job.run_after <= datetime.utcnow())
+            .filter(Job.status == JobStatus.PENDING, Job.run_after <= utcnow())
             .order_by(Job.priority.desc(), Job.id.asc())
             .first()
         )
         if job:
             job.status = JobStatus.RUNNING
             job.locked_by = worker_id
-            job.locked_at = datetime.utcnow()
+            job.locked_at = utcnow()
             self.db.commit()
         return job
 

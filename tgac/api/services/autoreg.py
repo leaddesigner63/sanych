@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable, Protocol
 
 import httpx
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..models.core import Account, AccountStatus, Job, JobType
 from ..utils.crypto import encrypt_session
 from ..utils.settings import get_settings
+from ..utils.time import utcnow
 from .scheduler_core import SchedulerCore
 
 
@@ -196,7 +197,7 @@ class AutoRegService:
 
         if result.next_payload is not None:
             delay = result.delay_seconds or self.poll_interval_seconds
-            run_after = datetime.utcnow() + timedelta(seconds=delay)
+            run_after = utcnow() + timedelta(seconds=delay)
             self.scheduler.enqueue(
                 JobType.AUTOREG_STEP,
                 result.next_payload,

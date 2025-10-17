@@ -3,6 +3,7 @@
 from .crypto import decrypt_session, encrypt_session, get_fernet
 from .settings import Settings, get_settings
 from .spintax import spin
+from .time import utcnow
 
 __all__ = [
     "decrypt_session",
@@ -11,4 +12,5 @@ __all__ = [
     "Settings",
     "get_settings",
     "spin",
+    "utcnow",
 ]

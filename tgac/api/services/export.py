@@ -22,6 +22,7 @@ from ..models.core import (
     Task,
     TaskAssignment,
 )
+from ..utils.time import utcnow
 from .metrics import MetricsService, ProjectMetric
 
 
@@ -147,7 +148,7 @@ class ExportService:
 
         payload["metadata.json"] = {
             "project_id": project_id,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utcnow().isoformat(),
             "entity_counts": {
                 "accounts": len(accounts),
                 "proxies": len(proxies),
