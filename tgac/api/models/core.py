@@ -218,6 +218,8 @@ class Comment(Base):
     result: Mapped[Optional[CommentResult]] = mapped_column(SAEnum(CommentResult))
     error_code: Mapped[Optional[str]] = mapped_column(String(64))
     error_msg: Mapped[Optional[str]] = mapped_column(Text)
+    visible: Mapped[Optional[bool]] = mapped_column(Boolean)
+    visibility_checked_at: Mapped[Optional[datetime]] = mapped_column()
 
 
 class JobType(str, Enum):

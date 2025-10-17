@@ -5,6 +5,7 @@ from .auth_flow import AuthService
 from .channels import ChannelService
 from .export import ExportService
 from .history import HistoryService
+from .observer import ObserverService
 from .playlists import PlaylistService
 from .scheduler_core import SchedulerCore
 from .tasks import TaskService
@@ -15,6 +16,7 @@ __all__ = [
     "ChannelService",
     "ExportService",
     "HistoryService",
+    "ObserverService",
     "PlaylistService",
     "SchedulerCore",
     "TaskService",
