@@ -14,6 +14,7 @@ from .routers import (
     playlists,
     projects,
     proxies,
+    settings,
     tasks,
     users,
 )
@@ -40,6 +41,7 @@ def include_routers(application: FastAPI) -> None:
         logs.router,
         history.router,
         exports.router,
+        settings.router,
     ]:
         application.include_router(router)
 

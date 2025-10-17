@@ -32,6 +32,7 @@ from .tasks import (
     TaskStatsResponse,
     TaskUpdateRequest,
 )
+from .settings import SettingOverride, SettingUpdateRequest, SettingsResponse
 
 __all__ = [
     "AccountHealthcheckRequest",
@@ -55,6 +56,9 @@ __all__ = [
     "ProxyImportRequest",
     "ProxyImportResponse",
     "ProxyResponse",
+    "SettingOverride",
+    "SettingUpdateRequest",
+    "SettingsResponse",
     "TaskAssignRequest",
     "TaskAssignResponse",
     "TaskCreateRequest",
