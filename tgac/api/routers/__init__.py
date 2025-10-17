@@ -8,6 +8,7 @@ from . import (
     playlists,
     projects,
     proxies,
+    settings,
     tasks,
     users,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "playlists",
     "projects",
     "proxies",
+    "settings",
     "tasks",
     "users",
 ]
