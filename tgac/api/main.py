@@ -4,7 +4,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from .routers import accounts, auth, logs, projects, proxies, tasks, users
+from .routers import (
+    accounts,
+    auth,
+    channels,
+    logs,
+    playlists,
+    projects,
+    proxies,
+    tasks,
+    users,
+)
 
 app = FastAPI(title="TG Commenting Combiner")
 templates = Jinja2Templates(directory="tgac/api/templates")
@@ -16,7 +26,17 @@ async def index(request: Request) -> HTMLResponse:
 
 
 def include_routers(application: FastAPI) -> None:
-    for router in [auth.router, users.router, projects.router, accounts.router, proxies.router, tasks.router, logs.router]:
+    for router in [
+        auth.router,
+        users.router,
+        projects.router,
+        accounts.router,
+        proxies.router,
+        channels.router,
+        playlists.router,
+        tasks.router,
+        logs.router,
+    ]:
         application.include_router(router)
 
 
