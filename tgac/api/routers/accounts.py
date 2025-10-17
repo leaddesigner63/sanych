@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
 from ..models.core import Account, AccountStatus
+from ..schemas import AssignProxyRequest
 from ..schemas.common import DataResponse
+from ..services.accounts import AccountService, AccountServiceError
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -39,3 +41,16 @@ def create_account(payload: dict, db: Session = Depends(get_db)) -> DataResponse
     db.commit()
     db.refresh(account)
     return DataResponse(data={"id": account.id, "status": account.status.value})
+
+
+@router.post("/{account_id}/proxy", response_model=DataResponse)
+def assign_proxy(
+    account_id: int, payload: AssignProxyRequest, db: Session = Depends(get_db)
+) -> DataResponse:
+    service = AccountService(db)
+    try:
+        account = service.assign_proxy(account_id, payload.proxy_id)
+    except AccountServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    return DataResponse(data={"id": account.id, "proxy_id": account.proxy_id})
