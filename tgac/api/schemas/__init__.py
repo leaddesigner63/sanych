@@ -19,6 +19,14 @@ from .playlists import (
     PlaylistCreateRequest,
     PlaylistUpdateRequest,
 )
+from .proxies import (
+    ProxyCheckRequest,
+    ProxyCreateRequest,
+    ProxyImportItem,
+    ProxyImportRequest,
+    ProxyImportResponse,
+    ProxyResponse,
+)
 from .tasks import (
     TaskAssignRequest,
     TaskAssignResponse,
@@ -42,6 +50,12 @@ __all__ = [
     "PlaylistAssignChannelsRequest",
     "PlaylistCreateRequest",
     "PlaylistUpdateRequest",
+    "ProxyCheckRequest",
+    "ProxyCreateRequest",
+    "ProxyImportItem",
+    "ProxyImportRequest",
+    "ProxyImportResponse",
+    "ProxyResponse",
     "TaskAssignRequest",
     "TaskAssignResponse",
     "TaskCreateRequest",
