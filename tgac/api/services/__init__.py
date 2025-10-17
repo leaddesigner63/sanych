@@ -4,6 +4,7 @@ from .accounts import AccountService
 from .auth_flow import AuthService
 from .channels import ChannelService
 from .playlists import PlaylistService
+from .tasks import TaskService
 from .scheduler_core import SchedulerCore
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "ChannelService",
     "PlaylistService",
     "SchedulerCore",
+    "TaskService",
 ]
