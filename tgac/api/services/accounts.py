@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Sequence
 
 from sqlalchemy.orm import Session
 
 from ..models.core import Account, AccountStatus, Proxy
+from ..utils.time import utcnow
 
 MAX_ACCOUNTS_PER_PROXY = 3
 
@@ -148,7 +148,7 @@ class AccountService:
         if account is None:
             raise AccountNotFound(f"Account {account_id} not found", status_code=404)
 
-        account.last_health_at = datetime.utcnow()
+        account.last_health_at = utcnow()
         if status is not None:
             account.status = status
         if notes is not None:

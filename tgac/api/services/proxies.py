@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models.core import Proxy, ProxyScheme
+from ..utils.time import utcnow
 
 
 class ProxyServiceError(Exception):
@@ -156,7 +156,7 @@ class ProxyService:
             raise ProxyNotFound(f"Proxy {proxy_id} not found", status_code=404)
 
         proxy.is_working = is_working
-        proxy.last_check_at = datetime.utcnow()
+        proxy.last_check_at = utcnow()
         self.db.commit()
         self.db.refresh(proxy)
         return proxy

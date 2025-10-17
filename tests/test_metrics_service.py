@@ -21,6 +21,7 @@ from tgac.api.models.core import (
     User,
 )
 from tgac.api.services.metrics import MetricsService, ProjectNotFound
+from tgac.api.utils.time import utcnow
 
 
 def setup_module(module) -> None:
@@ -104,7 +105,7 @@ def _create_project_with_entities(session: Session) -> Project:
         post_id=10,
         result=CommentResult.SUCCESS,
         visible=True,
-        visibility_checked_at=datetime.utcnow(),
+        visibility_checked_at=utcnow(),
     )
     error_comment = Comment(
         account_id=account_active.id,
@@ -113,7 +114,7 @@ def _create_project_with_entities(session: Session) -> Project:
         post_id=11,
         result=CommentResult.ERROR,
         visible=False,
-        visibility_checked_at=datetime.utcnow(),
+        visibility_checked_at=utcnow(),
     )
     skipped_comment = Comment(
         account_id=account_paused.id,

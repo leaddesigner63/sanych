@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import Depends, HTTPException, status
 from itsdangerous import BadSignature, URLSafeSerializer
@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..deps import get_db
 from ..models.core import LoginToken, LoginTokenStatus, User, UserRole
 from ..schemas.common import DataResponse
+from ..utils.time import utcnow
 from ..utils.settings import get_settings
 
 
@@ -33,7 +34,7 @@ class AuthService:
         ttl = timedelta(minutes=self.settings.telegram_deeplink_ttl_min)
         if login_token.status == LoginTokenStatus.CONFIRMED:
             return login_token
-        if datetime.utcnow() - login_token.created_at > ttl:
+        if utcnow() - login_token.created_at > ttl:
             login_token.status = LoginTokenStatus.EXPIRED
             self.db.commit()
             raise HTTPException(status_code=status.HTTP_410_GONE, detail="Token expired")
@@ -44,7 +45,7 @@ class AuthService:
         login_token.status = LoginTokenStatus.CONFIRMED
         login_token.username = username
         login_token.chat_id = chat_id
-        login_token.confirmed_at = datetime.utcnow()
+        login_token.confirmed_at = utcnow()
         self.db.commit()
         return login_token
 

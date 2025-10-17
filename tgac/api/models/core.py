@@ -4,11 +4,23 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, Enum as SAEnum, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Enum as SAEnum,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base, TimestampMixin
+from .types import UTCDateTime
+from ..utils.time import utcnow
 
 
 class UserRole(str, Enum):
@@ -43,7 +55,7 @@ class Project(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[ProjectStatus] = mapped_column(SAEnum(ProjectStatus), default=ProjectStatus.ACTIVE, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     owner: Mapped[User] = relationship(back_populates="projects")
     accounts: Mapped[list["Account"]] = relationship(back_populates="project")
@@ -70,8 +82,8 @@ class Account(Base, TimestampMixin):
     is_paused: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tags: Mapped[Optional[str]] = mapped_column(Text)
     notes: Mapped[Optional[str]] = mapped_column(Text)
-    last_health_at: Mapped[Optional[datetime]] = mapped_column()
-    last_comment_at: Mapped[Optional[datetime]] = mapped_column()
+    last_health_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    last_comment_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
     project: Mapped[Project] = relationship(back_populates="accounts")
     proxy: Mapped[Optional["Proxy"]] = relationship(back_populates="accounts")
@@ -95,7 +107,7 @@ class Proxy(Base, TimestampMixin):
     port: Mapped[int] = mapped_column(Integer, nullable=False)
     username: Mapped[Optional[str]] = mapped_column(String(120))
     password: Mapped[Optional[str]] = mapped_column(String(120))
-    last_check_at: Mapped[Optional[datetime]] = mapped_column()
+    last_check_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     is_working: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="proxies")
@@ -112,7 +124,7 @@ class Channel(Base):
     tg_id: Mapped[Optional[int]] = mapped_column(Integer)
     link: Mapped[Optional[str]] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     playlists: Mapped[list["PlaylistChannel"]] = relationship(back_populates="channel")
 
@@ -159,8 +171,10 @@ class Task(Base, TimestampMixin):
     status: Mapped[TaskStatus] = mapped_column(SAEnum(TaskStatus), default=TaskStatus.ON, nullable=False)
     mode: Mapped[TaskMode] = mapped_column(SAEnum(TaskMode), default=TaskMode.NEW_POSTS, nullable=False)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), default=utcnow, onupdate=utcnow
+    )
 
 
 class TaskAssignment(Base):
@@ -169,7 +183,7 @@ class TaskAssignment(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
     account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False)
-    assigned_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    assigned_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
 
     task: Mapped[Task] = relationship()
     account: Mapped[Account] = relationship()
@@ -192,8 +206,8 @@ class Post(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), nullable=False)
     post_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    published_at: Mapped[Optional[datetime]] = mapped_column()
-    detected_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    published_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    detected_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     state: Mapped[Optional[str]] = mapped_column(String(64))
 
 
@@ -213,13 +227,13 @@ class Comment(Base):
     post_id: Mapped[int] = mapped_column(Integer, nullable=False)
     template: Mapped[Optional[str]] = mapped_column(Text)
     rendered: Mapped[Optional[str]] = mapped_column(Text)
-    planned_at: Mapped[Optional[datetime]] = mapped_column()
-    sent_at: Mapped[Optional[datetime]] = mapped_column()
+    planned_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
+    sent_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     result: Mapped[Optional[CommentResult]] = mapped_column(SAEnum(CommentResult))
     error_code: Mapped[Optional[str]] = mapped_column(String(64))
     error_msg: Mapped[Optional[str]] = mapped_column(Text)
     visible: Mapped[Optional[bool]] = mapped_column(Boolean)
-    visibility_checked_at: Mapped[Optional[datetime]] = mapped_column()
+    visibility_checked_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
 
 class JobType(str, Enum):
@@ -249,9 +263,9 @@ class Job(Base, TimestampMixin):
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
     priority: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[JobStatus] = mapped_column(SAEnum(JobStatus), default=JobStatus.PENDING, nullable=False)
-    run_after: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    run_after: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
     locked_by: Mapped[Optional[str]] = mapped_column(String(64))
-    locked_at: Mapped[Optional[datetime]] = mapped_column()
+    locked_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
     tries: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[Optional[str]] = mapped_column(Text)
 
@@ -269,7 +283,7 @@ class AuditLog(Base):
     __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    ts: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
+    ts: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow, nullable=False)
     actor: Mapped[str] = mapped_column(String(64), nullable=False)
     action: Mapped[str] = mapped_column(String(255), nullable=False)
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -288,8 +302,8 @@ class LoginToken(Base):
     username: Mapped[Optional[str]] = mapped_column(String(64))
     chat_id: Mapped[Optional[int]] = mapped_column(Integer)
     status: Mapped[LoginTokenStatus] = mapped_column(SAEnum(LoginTokenStatus), default=LoginTokenStatus.PENDING)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    confirmed_at: Mapped[Optional[datetime]] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
 
 __all__ = [
