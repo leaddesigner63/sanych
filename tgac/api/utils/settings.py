@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     telegram_deeplink_ttl_min: int = Field(10, env="TELEGRAM_DEEPLINK_TTL_MIN")
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
     sms_activate_api_key: Optional[str] = Field(None, env="SMS_ACTIVATE_API_KEY")
+    sms_activate_poll_interval_seconds: int = Field(30, env="SMS_ACTIVATE_POLL_INTERVAL_SECONDS")
+    sms_activate_max_poll_attempts: int = Field(10, env="SMS_ACTIVATE_MAX_POLL_ATTEMPTS")
     brightdata_username: Optional[str] = Field(None, env="BRIGHTDATA_USERNAME")
     brightdata_password: Optional[str] = Field(None, env="BRIGHTDATA_PASSWORD")
     timezone: str = Field("Europe/Amsterdam", env="TZ")
