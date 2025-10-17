@@ -1,6 +1,14 @@
 """Pydantic schemas package."""
 
-from .accounts import AssignProxyRequest
+from .accounts import (
+    AccountHealthcheckRequest,
+    AccountHealthcheckResponse,
+    AccountImportItem,
+    AccountImportRequest,
+    AccountImportResponse,
+    AccountPauseResponse,
+    AssignProxyRequest,
+)
 from .channels import (
     ChannelAssignAccountsRequest,
     ChannelCreate,
@@ -21,6 +29,12 @@ from .tasks import (
 )
 
 __all__ = [
+    "AccountHealthcheckRequest",
+    "AccountHealthcheckResponse",
+    "AccountImportItem",
+    "AccountImportRequest",
+    "AccountImportResponse",
+    "AccountPauseResponse",
     "AssignProxyRequest",
     "ChannelAssignAccountsRequest",
     "ChannelCreate",

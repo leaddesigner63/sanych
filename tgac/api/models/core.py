@@ -67,6 +67,7 @@ class Account(Base, TimestampMixin):
     session_enc: Mapped[bytes] = mapped_column(nullable=False)
     status: Mapped[AccountStatus] = mapped_column(SAEnum(AccountStatus), default=AccountStatus.NEEDS_LOGIN, nullable=False)
     proxy_id: Mapped[Optional[int]] = mapped_column(ForeignKey("proxies.id"))
+    is_paused: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tags: Mapped[Optional[str]] = mapped_column(Text)
     notes: Mapped[Optional[str]] = mapped_column(Text)
     last_health_at: Mapped[Optional[datetime]] = mapped_column()

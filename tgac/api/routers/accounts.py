@@ -5,9 +5,20 @@ from sqlalchemy.orm import Session
 
 from ..deps import get_db
 from ..models.core import Account, AccountStatus
-from ..schemas import AssignProxyRequest
+from ..schemas import (
+    AccountHealthcheckRequest,
+    AccountHealthcheckResponse,
+    AccountImportRequest,
+    AccountImportResponse,
+    AccountPauseResponse,
+    AssignProxyRequest,
+)
 from ..schemas.common import DataResponse
-from ..services.accounts import AccountService, AccountServiceError
+from ..services.accounts import (
+    AccountImportData,
+    AccountService,
+    AccountServiceError,
+)
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -22,6 +33,10 @@ def list_accounts(db: Session = Depends(get_db)) -> DataResponse:
                 "phone": account.phone,
                 "status": account.status.value,
                 "project_id": account.project_id,
+                "is_paused": account.is_paused,
+                "last_health_at": account.last_health_at.isoformat()
+                if account.last_health_at
+                else None,
             }
             for account in accounts
         ]
@@ -43,6 +58,27 @@ def create_account(payload: dict, db: Session = Depends(get_db)) -> DataResponse
     return DataResponse(data={"id": account.id, "status": account.status.value})
 
 
+@router.post("/import", response_model=DataResponse)
+def import_accounts(payload: AccountImportRequest, db: Session = Depends(get_db)) -> DataResponse:
+    service = AccountService(db)
+    entries = [
+        AccountImportData(
+            phone=item.phone,
+            status=item.status or AccountStatus.NEEDS_LOGIN,
+            tags=item.tags,
+            notes=item.notes,
+        )
+        for item in payload.accounts
+    ]
+    summary = service.import_accounts(payload.project_id, entries)
+    response = AccountImportResponse(
+        created=[account.id for account in summary.created],
+        skipped=summary.skipped,
+        count=len(summary.created),
+    )
+    return DataResponse(data=response.model_dump())
+
+
 @router.post("/{account_id}/proxy", response_model=DataResponse)
 def assign_proxy(
     account_id: int, payload: AssignProxyRequest, db: Session = Depends(get_db)
@@ -54,3 +90,52 @@ def assign_proxy(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     return DataResponse(data={"id": account.id, "proxy_id": account.proxy_id})
+
+
+@router.post("/{account_id}/healthcheck", response_model=DataResponse)
+def record_healthcheck(
+    account_id: int,
+    payload: AccountHealthcheckRequest,
+    db: Session = Depends(get_db),
+) -> DataResponse:
+    service = AccountService(db)
+    try:
+        account = service.record_healthcheck(
+            account_id,
+            status=payload.status,
+            notes=payload.notes,
+        )
+    except AccountServiceError as exc:  # pragma: no cover - FastAPI converts to response
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    response = AccountHealthcheckResponse(
+        id=account.id,
+        status=account.status,
+        last_health_at=account.last_health_at,
+        notes=account.notes,
+    )
+    return DataResponse(data=response.model_dump(mode="json"))
+
+
+@router.post("/{account_id}/pause", response_model=DataResponse)
+def pause_account(account_id: int, db: Session = Depends(get_db)) -> DataResponse:
+    service = AccountService(db)
+    try:
+        account = service.set_paused(account_id, True)
+    except AccountServiceError as exc:  # pragma: no cover - FastAPI converts
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    response = AccountPauseResponse(id=account.id, is_paused=account.is_paused)
+    return DataResponse(data=response.model_dump())
+
+
+@router.post("/{account_id}/resume", response_model=DataResponse)
+def resume_account(account_id: int, db: Session = Depends(get_db)) -> DataResponse:
+    service = AccountService(db)
+    try:
+        account = service.set_paused(account_id, False)
+    except AccountServiceError as exc:  # pragma: no cover - FastAPI converts
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+    response = AccountPauseResponse(id=account.id, is_paused=account.is_paused)
+    return DataResponse(data=response.model_dump())
