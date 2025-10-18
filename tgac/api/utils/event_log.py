@@ -92,6 +92,58 @@ class JsonlEventLogger:
             }
         )
 
+    def prune(self, retain_after: datetime) -> int:
+        """Remove records older than the provided timestamp.
+
+        Returns the number of entries removed from the log file.
+        """
+
+        retain_after = retain_after.astimezone(timezone.utc)
+        if not self.path.exists():
+            return 0
+
+        kept_lines: list[str] = []
+        removed = 0
+
+        with self.path.open("r", encoding="utf-8") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError:
+                    removed += 1
+                    continue
+
+                timestamp_raw = payload.get("timestamp")
+                if not isinstance(timestamp_raw, str):
+                    removed += 1
+                    continue
+
+                try:
+                    timestamp = datetime.fromisoformat(timestamp_raw)
+                except ValueError:
+                    removed += 1
+                    continue
+
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+                else:
+                    timestamp = timestamp.astimezone(timezone.utc)
+
+                if timestamp >= retain_after:
+                    kept_lines.append(line)
+                else:
+                    removed += 1
+
+        with self.path.open("w", encoding="utf-8") as handle:
+            for line in kept_lines:
+                handle.write(line)
+                handle.write("\n")
+
+        return removed
+
 
 __all__ = [
     "CommentEventLogger",

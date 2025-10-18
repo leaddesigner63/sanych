@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from tgac.api.models.core import Comment, CommentResult
 from tgac.api.utils.event_log import JsonlEventLogger, NullEventLogger
@@ -55,4 +55,36 @@ def test_null_logger_is_noop() -> None:
 
     logger.comment_planned(comment)
     logger.comment_sent(comment)
+
+
+def test_jsonl_event_logger_prune_retains_recent_records(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    logger = JsonlEventLogger(path)
+
+    now = datetime(2025, 1, 10, tzinfo=timezone.utc)
+    old_record = {"timestamp": (now - timedelta(days=9)).isoformat(), "type": "old"}
+    recent_record = {"timestamp": (now - timedelta(days=2)).isoformat(), "type": "recent"}
+    missing_timestamp = {"type": "no_timestamp"}
+
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps(old_record) + "\n")
+        handle.write(json.dumps(recent_record) + "\n")
+        handle.write(json.dumps(missing_timestamp) + "\n")
+
+    removed = logger.prune(now - timedelta(days=7))
+
+    assert removed == 2
+
+    remaining = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    assert remaining == [recent_record]
+
+
+def test_jsonl_event_logger_prune_handles_missing_file(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    logger = JsonlEventLogger(path)
+
+    removed = logger.prune(datetime.now(timezone.utc))
+
+    assert removed == 0
+    assert not path.exists()
 
