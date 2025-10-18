@@ -346,3 +346,35 @@ def test_plan_for_post_respects_adaptive_throttle():
         assert len(created) == 1
     finally:
         session.close()
+
+
+def test_plan_for_post_respects_account_thread_limit():
+    session = TestingSession()
+    try:
+        project, channel, post, task, account = _make_project(session)
+
+        pending = Comment(
+            account_id=account.id,
+            task_id=task.id,
+            channel_id=channel.id,
+            post_id=999,
+            planned_at=utcnow(),
+        )
+        session.add(pending)
+        session.commit()
+
+        limited_engine = CommentEngine(
+            session, max_active_threads_per_account=1
+        )
+        created = limited_engine.plan_for_post(post.id)
+        assert created == []
+
+        pending.result = CommentResult.SUCCESS
+        pending.sent_at = utcnow()
+        session.commit()
+
+        created_after = limited_engine.plan_for_post(post.id)
+        assert len(created_after) == 1
+        assert created_after[0].account_id == account.id
+    finally:
+        session.close()
