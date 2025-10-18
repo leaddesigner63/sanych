@@ -6,6 +6,7 @@ from fastapi.templating import Jinja2Templates
 
 from .routers import (
     accounts,
+    audit,
     auth,
     channels,
     exports,
@@ -33,6 +34,7 @@ async def index(request: Request) -> HTMLResponse:
 def include_routers(application: FastAPI) -> None:
     for router in [
         auth.router,
+        audit.router,
         users.router,
         projects.router,
         accounts.router,

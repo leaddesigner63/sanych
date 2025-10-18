@@ -9,6 +9,7 @@ from .accounts import (
     AccountPauseResponse,
     AssignProxyRequest,
 )
+from .audit import AuditLogCreateRequest, AuditLogEntry, AuditLogListResponse
 from .channels import (
     ChannelAssignAccountsRequest,
     ChannelCreate,
@@ -44,6 +45,9 @@ __all__ = [
     "AccountImportResponse",
     "AccountPauseResponse",
     "AssignProxyRequest",
+    "AuditLogCreateRequest",
+    "AuditLogEntry",
+    "AuditLogListResponse",
     "ChannelAssignAccountsRequest",
     "ChannelCreate",
     "ChannelImportRequest",
