@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Iterable
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..models.core import (
+    Account,
+    AccountStatus,
     Comment,
     CommentResult,
     Job,
@@ -43,6 +45,67 @@ class SchedulerCore:
             self.enqueue(JobType.PLAN_COMMENTS, {"post_id": post.id})
             count += 1
         return count
+
+    def plan_healthchecks(
+        self,
+        *,
+        stale_after: timedelta | None = None,
+        limit: int | None = None,
+    ) -> int:
+        """Schedule healthcheck jobs for accounts that have gone stale."""
+
+        if stale_after is None or limit is None:
+            settings = get_settings()
+            if stale_after is None:
+                stale_after = timedelta(
+                    minutes=max(settings.account_healthcheck_interval_minutes, 0)
+                )
+            if limit is None:
+                limit = max(settings.account_healthcheck_batch_size, 0)
+
+        if stale_after <= timedelta(0):
+            return 0
+
+        cutoff = utcnow() - stale_after
+        active_statuses = (JobStatus.PENDING, JobStatus.RUNNING)
+        existing_rows = (
+            self.db.query(Job.payload["account_id"].as_integer())
+            .filter(Job.type == JobType.HEALTHCHECK, Job.status.in_(active_statuses))
+            .all()
+        )
+        busy_accounts = {
+            int(row[0])
+            for row in existing_rows
+            if row[0] is not None
+        }
+
+        excluded_statuses = (AccountStatus.DEAD, AccountStatus.BANNED)
+        query = (
+            self.db.query(Account.id)
+            .filter(Account.status.notin_(excluded_statuses))
+            .filter(
+                or_(
+                    Account.last_health_at.is_(None),
+                    Account.last_health_at < cutoff,
+                )
+            )
+            .order_by(
+                Account.last_health_at.is_(None).desc(),
+                Account.last_health_at.asc(),
+                Account.id.asc(),
+            )
+        )
+
+        if limit is not None and limit > 0:
+            query = query.limit(limit)
+
+        scheduled = 0
+        for (account_id,) in query:
+            if account_id in busy_accounts:
+                continue
+            self.enqueue(JobType.HEALTHCHECK, {"account_id": int(account_id)})
+            scheduled += 1
+        return scheduled
 
     def pick_next_job(self, worker_id: str) -> Job | None:
         job = (

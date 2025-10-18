@@ -18,9 +18,14 @@ def run_scheduler(poll_interval: int = 5) -> None:
         with SessionLocal(bind=get_engine()) as db:  # type: Session
             core = SchedulerCore(db)
             posts = db.query(Post).limit(10).all()
-            planned = core.plan_for_posts(posts)
-            if planned:
-                logger.info("Planned %s jobs", planned)
+            planned_comments = core.plan_for_posts(posts)
+            planned_health = core.plan_healthchecks()
+            if planned_comments or planned_health:
+                logger.info(
+                    "Planned %s comment jobs and %s healthchecks",
+                    planned_comments,
+                    planned_health,
+                )
         time.sleep(poll_interval)
 
 

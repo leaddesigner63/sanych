@@ -7,7 +7,8 @@ import uuid
 from sqlalchemy.orm import Session
 
 from ..api.deps import SessionLocal, get_engine
-from ..api.models.core import Job, JobType
+from ..api.models.core import AccountStatus, Job, JobType
+from ..api.services.accounts import AccountService, AccountServiceError
 from ..api.services.autoreg import AutoRegService, AutoRegServiceError, SmsActivateClient, SmsProviderError
 from ..api.services.comment_engine import CommentEngine, CommentEngineError
 from ..api.services.scheduler_core import SchedulerCore
@@ -48,6 +49,30 @@ def process_job(core: SchedulerCore, job: Job, engine: CommentEngine | None = No
                 core.release_job(job, result.success, error=result.error)
             finally:
                 sms_client.close()
+        elif job.type == JobType.HEALTHCHECK:
+            account_id = job.payload.get("account_id")
+            if account_id is None:
+                core.release_job(job, False, error="Job payload missing account_id")
+                return
+            status_value = job.payload.get("status")
+            status_enum: AccountStatus | None = None
+            if status_value is not None:
+                try:
+                    status_enum = AccountStatus(status_value)
+                except ValueError:
+                    core.release_job(job, False, error=f"Invalid account status: {status_value}")
+                    return
+            service = AccountService(core.db)
+            try:
+                service.record_healthcheck(
+                    int(account_id),
+                    status=status_enum,
+                    notes=job.payload.get("notes"),
+                )
+            except AccountServiceError as exc:
+                core.release_job(job, False, error=str(exc))
+            else:
+                core.release_job(job, True)
         elif job.type == JobType.SUBSCRIBE:
             service = SubscriptionService(core.db)
             result = service.process_job(job)
