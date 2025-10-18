@@ -1,5 +1,6 @@
 from . import (
     accounts,
+    audit,
     auth,
     channels,
     exports,
@@ -17,6 +18,7 @@ from . import (
 
 __all__ = [
     "accounts",
+    "audit",
     "auth",
     "channels",
     "exports",
