@@ -16,6 +16,7 @@ from ..models.core import (
     Comment,
     CommentResult,
     Job,
+    JobStatus,
     JobType,
     Post,
     Task,
@@ -116,10 +117,10 @@ class CommentEngine:
         if not assignments:
             return []
 
-        allowed_accounts = {
-            account_id
-            for (account_id,) in (
-                self.db.query(AccountChannelMap.account_id)
+        channel_mappings = {
+            mapping.account_id: mapping
+            for mapping in (
+                self.db.query(AccountChannelMap)
                 .filter(AccountChannelMap.channel_id == channel.id)
                 .all()
             )
@@ -141,12 +142,19 @@ class CommentEngine:
         }
 
         created: list[Comment] = []
+        subscribe_jobs: list[Job] = []
         now = utcnow()
 
         for assignment, account in assignments:
             if account.status != AccountStatus.ACTIVE or account.is_paused:
                 continue
-            if allowed_accounts and account.id not in allowed_accounts:
+            mapping = channel_mappings.get(account.id)
+            if channel_mappings and mapping is None:
+                continue
+            if mapping is not None and not mapping.is_subscribed:
+                job = self._ensure_subscription_job(account.id, channel.id, post)
+                if job is not None:
+                    subscribe_jobs.append(job)
                 continue
             if account.id in existing_pairs:
                 continue
@@ -171,7 +179,10 @@ class CommentEngine:
             created.append(comment)
 
         if not created:
-            self.db.flush()
+            if subscribe_jobs:
+                self.db.commit()
+            else:
+                self.db.flush()
             return []
 
         self.db.flush()
@@ -188,6 +199,35 @@ class CommentEngine:
             self.event_logger.comment_planned(comment)
 
         return created
+
+    def _ensure_subscription_job(self, account_id: int, channel_id: int, post: Post) -> Job | None:
+        """Create a subscription job if one is not already pending."""
+
+        active_statuses = (JobStatus.PENDING, JobStatus.RUNNING)
+        existing_job = (
+            self.db.query(Job)
+            .filter(
+                Job.type == JobType.SUBSCRIBE,
+                Job.status.in_(active_statuses),
+                Job.payload["account_id"].as_integer() == account_id,
+                Job.payload["channel_id"].as_integer() == channel_id,
+            )
+            .first()
+        )
+        if existing_job:
+            return None
+
+        job = Job(
+            type=JobType.SUBSCRIBE,
+            payload={
+                "account_id": account_id,
+                "channel_id": channel_id,
+                "post_id": post.id,
+            },
+            priority=5,
+        )
+        self.db.add(job)
+        return job
 
     def send_comment(self, comment_id: int) -> SendResult:
         """Execute the delivery for a prepared comment."""

@@ -83,7 +83,13 @@ def _make_project(session: Session) -> tuple[Project, Channel, Post, Task, Accou
     session.flush()
 
     session.add(TaskAssignment(task_id=task.id, account_id=account.id))
-    session.add(AccountChannelMap(account_id=account.id, channel_id=channel.id))
+    session.add(
+        AccountChannelMap(
+            account_id=account.id,
+            channel_id=channel.id,
+            is_subscribed=True,
+        )
+    )
     session.commit()
 
     session.refresh(post)
@@ -108,7 +114,13 @@ def test_plan_for_post_filters_accounts_and_deduplicates():
         session.add(paused_account)
         session.flush()
         session.add(TaskAssignment(task_id=task.id, account_id=paused_account.id))
-        session.add(AccountChannelMap(account_id=paused_account.id, channel_id=channel.id))
+        session.add(
+            AccountChannelMap(
+                account_id=paused_account.id,
+                channel_id=channel.id,
+                is_subscribed=True,
+            )
+        )
 
         foreign_account = Account(
             project_id=project.id,
@@ -217,5 +229,72 @@ def test_worker_processes_plan_and_send_jobs():
         assert final_comment is not None
         assert final_comment.result == CommentResult.SUCCESS
         assert final_comment.sent_at is not None
+    finally:
+        session.close()
+
+
+def test_subscription_job_marks_mapping_and_triggers_comment_plan():
+    session = TestingSession()
+    try:
+        _, channel, post, _, account = _make_project(session)
+        mapping = (
+            session.query(AccountChannelMap)
+            .filter(
+                AccountChannelMap.account_id == account.id,
+                AccountChannelMap.channel_id == channel.id,
+            )
+            .one()
+        )
+        mapping.is_subscribed = False
+        mapping.last_subscribed_at = None
+        session.commit()
+
+        engine = CommentEngine(session)
+        created = engine.plan_for_post(post.id)
+        assert created == []
+
+        subscribe_job = (
+            session.query(Job)
+            .filter(Job.type == JobType.SUBSCRIBE)
+            .one()
+        )
+        assert subscribe_job.payload["account_id"] == account.id
+        assert subscribe_job.payload["channel_id"] == channel.id
+
+        core = SchedulerCore(session)
+        picked = core.pick_next_job("worker-subscribe")
+        assert picked is not None
+        assert picked.type == JobType.SUBSCRIBE
+
+        process_job(core, picked, engine=CommentEngine(session))
+
+        session.expire_all()
+        updated_mapping = (
+            session.query(AccountChannelMap)
+            .filter(
+                AccountChannelMap.account_id == account.id,
+                AccountChannelMap.channel_id == channel.id,
+            )
+            .one()
+        )
+        assert updated_mapping.is_subscribed is True
+        assert updated_mapping.last_subscribed_at is not None
+
+        next_job = core.pick_next_job("worker-send")
+        assert next_job is not None
+        assert next_job.type == JobType.SEND_COMMENT
+
+        process_job(
+            core,
+            next_job,
+            engine=CommentEngine(
+                session,
+                sender=lambda _: SendResult(result=CommentResult.SUCCESS),
+            ),
+        )
+
+        session.expire_all()
+        comment = session.query(Comment).one()
+        assert comment.result == CommentResult.SUCCESS
     finally:
         session.close()

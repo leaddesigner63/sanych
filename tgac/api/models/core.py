@@ -193,8 +193,16 @@ class AccountChannelMap(Base):
     __tablename__ = "account_channel_map"
     __table_args__ = (UniqueConstraint("account_id", "channel_id", name="pk_account_channel"),)
 
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True)
-    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), primary_key=True)
+    account_id: Mapped[int] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    channel_id: Mapped[int] = mapped_column(
+        ForeignKey("channels.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    is_subscribed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_subscribed_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
     account: Mapped[Account] = relationship(back_populates="channels")
 
