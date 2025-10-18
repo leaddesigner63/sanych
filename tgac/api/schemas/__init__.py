@@ -36,6 +36,7 @@ from .tasks import (
 )
 from .projects import ProjectCreateRequest, ProjectResponse, ProjectUpdateRequest
 from .settings import SettingOverride, SettingUpdateRequest, SettingsResponse
+from .users import UserCreateRequest, UserResponse, UserUpdateRequest
 
 __all__ = [
     "AccountHealthcheckRequest",
@@ -76,4 +77,7 @@ __all__ = [
     "TaskResponse",
     "TaskStatsResponse",
     "TaskUpdateRequest",
+    "UserCreateRequest",
+    "UserUpdateRequest",
+    "UserResponse",
 ]
