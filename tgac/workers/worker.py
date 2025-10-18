@@ -11,6 +11,7 @@ from ..api.models.core import Job, JobType
 from ..api.services.autoreg import AutoRegService, AutoRegServiceError, SmsActivateClient, SmsProviderError
 from ..api.services.comment_engine import CommentEngine, CommentEngineError
 from ..api.services.scheduler_core import SchedulerCore
+from ..api.services.subscription import SubscriptionService
 from ..api.utils.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,10 @@ def process_job(core: SchedulerCore, job: Job, engine: CommentEngine | None = No
                 core.release_job(job, result.success, error=result.error)
             finally:
                 sms_client.close()
+        elif job.type == JobType.SUBSCRIBE:
+            service = SubscriptionService(core.db)
+            result = service.process_job(job)
+            core.release_job(job, result.success, error=result.error)
         else:
             core.release_job(job, False, error=f"Unsupported job type: {job.type}")
     except (CommentEngineError, AutoRegServiceError, SmsProviderError) as exc:

@@ -13,6 +13,7 @@ from .observer import ObserverService
 from .playlists import PlaylistService
 from .scheduler_core import SchedulerCore
 from .settings import SettingsService
+from .subscription import SubscriptionService
 from .tasks import TaskService
 
 __all__ = [
@@ -29,5 +30,6 @@ __all__ = [
     "PlaylistService",
     "SchedulerCore",
     "SettingsService",
+    "SubscriptionService",
     "TaskService",
 ]
