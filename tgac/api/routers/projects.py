@@ -7,6 +7,7 @@ from ..deps import get_db
 from ..models.core import Project
 from ..schemas import ProjectCreateRequest, ProjectResponse, ProjectUpdateRequest
 from ..schemas.common import DataResponse
+from ..services.projects import ProjectService, ProjectServiceError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -23,14 +24,16 @@ def list_projects(db: Session = Depends(get_db)) -> DataResponse:
 
 @router.post("", response_model=DataResponse, status_code=status.HTTP_201_CREATED)
 def create_project(payload: ProjectCreateRequest, db: Session = Depends(get_db)) -> DataResponse:
-    project = Project(
-        user_id=payload.user_id,
-        name=payload.name,
-        status=payload.status,
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
+    service = ProjectService(db)
+    try:
+        project = service.create_project(
+            user_id=payload.user_id,
+            name=payload.name,
+            status=payload.status,
+        )
+    except ProjectServiceError as exc:  # pragma: no cover - FastAPI handles response
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
     return DataResponse(data=_serialize_project(project))
 
 
