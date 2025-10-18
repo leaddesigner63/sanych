@@ -27,6 +27,7 @@ from ..models.core import (
 from ..utils.event_log import CommentEventLogger, JsonlEventLogger
 from ..utils.time import utcnow
 from ..utils.settings import get_settings
+from .throttle import AdaptiveThrottle
 
 TemplateRenderer = Callable[[Task, Post, Account], str]
 
@@ -68,6 +69,7 @@ class CommentEngine:
     renderer: TemplateRenderer | None = None
     sender: SendCallback | None = None
     event_logger: CommentEventLogger | None = None
+    throttler: AdaptiveThrottle | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial defaults
         if self.renderer is None:
@@ -77,6 +79,8 @@ class CommentEngine:
         if self.event_logger is None:
             settings = get_settings()
             self.event_logger = JsonlEventLogger(Path(settings.events_log_path))
+        if self.throttler is None:
+            self.throttler = AdaptiveThrottle(self.db)
 
     # ------------------------------------------------------------------
     # Public API
@@ -141,7 +145,7 @@ class CommentEngine:
             if account_id is not None
         }
 
-        created: list[Comment] = []
+        eligible: list[tuple[Task, Account]] = []
         subscribe_jobs: list[Job] = []
         now = utcnow()
 
@@ -163,6 +167,21 @@ class CommentEngine:
             if task is None:
                 continue
 
+            eligible.append((task, account))
+
+        throttler = self.throttler or AdaptiveThrottle(self.db)
+        allowed = throttler.allowed_for(channel.project_id, len(eligible))
+        selected = eligible[:allowed]
+
+        if not selected:
+            if subscribe_jobs:
+                self.db.commit()
+            else:
+                self.db.flush()
+            return []
+
+        created: list[Comment] = []
+        for task, account in selected:
             template = (task.config or {}).get("template") if task.config else None
             rendered = self.renderer(task, post, account)
 
@@ -177,13 +196,6 @@ class CommentEngine:
             )
             self.db.add(comment)
             created.append(comment)
-
-        if not created:
-            if subscribe_jobs:
-                self.db.commit()
-            else:
-                self.db.flush()
-            return []
 
         self.db.flush()
 

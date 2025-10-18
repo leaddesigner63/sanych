@@ -24,6 +24,7 @@ from tgac.api.models.core import (
 )
 from tgac.api.services.comment_engine import CommentEngine, SendResult
 from tgac.api.services.scheduler_core import SchedulerCore
+from tgac.api.utils.time import utcnow
 from tgac.workers.worker import process_job
 
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
@@ -296,5 +297,52 @@ def test_subscription_job_marks_mapping_and_triggers_comment_plan():
         session.expire_all()
         comment = session.query(Comment).one()
         assert comment.result == CommentResult.SUCCESS
+    finally:
+        session.close()
+
+
+def test_plan_for_post_respects_adaptive_throttle():
+    session = TestingSession()
+    try:
+        project, channel, post, task, account = _make_project(session)
+
+        for idx in range(2):
+            extra = Account(
+                project_id=project.id,
+                phone=f"+7999000005{idx}",
+                session_enc=b"enc",
+                status=AccountStatus.ACTIVE,
+            )
+            session.add(extra)
+            session.flush()
+            session.add(TaskAssignment(task_id=task.id, account_id=extra.id))
+            session.add(
+                AccountChannelMap(
+                    account_id=extra.id,
+                    channel_id=channel.id,
+                    is_subscribed=True,
+                )
+            )
+
+        session.commit()
+
+        for idx in range(20):
+            session.add(
+                Comment(
+                    account_id=account.id,
+                    task_id=task.id,
+                    channel_id=channel.id,
+                    post_id=idx + 500,
+                    result=CommentResult.SUCCESS,
+                    visible=idx < 8,
+                    visibility_checked_at=utcnow(),
+                )
+            )
+        session.commit()
+
+        engine = CommentEngine(session)
+        created = engine.plan_for_post(post.id)
+
+        assert len(created) == 1
     finally:
         session.close()
