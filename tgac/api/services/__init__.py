@@ -14,6 +14,7 @@ from .playlists import PlaylistService
 from .scheduler_core import SchedulerCore
 from .settings import SettingsService
 from .subscription import SubscriptionService
+from .throttle import AdaptiveThrottle
 from .tasks import TaskService
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "SchedulerCore",
     "SettingsService",
     "SubscriptionService",
+    "AdaptiveThrottle",
     "TaskService",
 ]
