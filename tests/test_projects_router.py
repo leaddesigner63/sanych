@@ -92,6 +92,35 @@ def test_delete_project_removes_row():
         session.close()
 
 
+def test_create_project_enforces_user_quota():
+    session = TestingSession()
+    try:
+        user = make_user(session, "erin")
+        user.quota_projects = 1
+        session.flush()
+
+        create_project(
+            ProjectCreateRequest(
+                user_id=user.id, name="First", status=ProjectStatus.ACTIVE
+            ),
+            db=session,
+        )
+
+        try:
+            create_project(
+                ProjectCreateRequest(
+                    user_id=user.id, name="Second", status=ProjectStatus.ACTIVE
+                ),
+                db=session,
+            )
+        except HTTPException as exc:
+            assert exc.status_code == 403
+        else:  # pragma: no cover - sanity guard
+            raise AssertionError("Expected HTTPException for quota overflow")
+    finally:
+        session.close()
+
+
 def test_update_missing_project_raises_not_found():
     session = TestingSession()
     try:

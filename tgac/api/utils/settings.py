@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     account_healthcheck_batch_size: int = Field(
         100, env="ACCOUNT_HEALTHCHECK_BATCH_SIZE"
     )
+    default_project_quota: int = Field(5, env="DEFAULT_PROJECT_QUOTA")
 
     worker_shards: int = Field(1, env="WORKER_SHARDS")
     worker_shard: int = Field(0, env="WORKER_SHARD")

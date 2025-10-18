@@ -11,6 +11,7 @@ from .metrics import MetricsService
 from .llm import LlmService
 from .observer import ObserverService
 from .playlists import PlaylistService
+from .projects import ProjectService
 from .scheduler_core import SchedulerCore
 from .settings import SettingsService
 from .subscription import SubscriptionService
@@ -29,6 +30,7 @@ __all__ = [
     "MetricsService",
     "ObserverService",
     "PlaylistService",
+    "ProjectService",
     "SchedulerCore",
     "SettingsService",
     "SubscriptionService",
