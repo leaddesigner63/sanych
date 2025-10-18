@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..models.core import (
@@ -70,6 +71,7 @@ class CommentEngine:
     sender: SendCallback | None = None
     event_logger: CommentEventLogger | None = None
     throttler: AdaptiveThrottle | None = None
+    max_active_threads_per_account: int | None = None
 
     def __post_init__(self) -> None:  # pragma: no cover - trivial defaults
         if self.renderer is None:
@@ -81,6 +83,8 @@ class CommentEngine:
             self.event_logger = JsonlEventLogger(Path(settings.events_log_path))
         if self.throttler is None:
             self.throttler = AdaptiveThrottle(self.db)
+        if self.max_active_threads_per_account is None:
+            self.max_active_threads_per_account = get_settings().max_active_threads_per_account
 
     # ------------------------------------------------------------------
     # Public API
@@ -149,6 +153,21 @@ class CommentEngine:
         subscribe_jobs: list[Job] = []
         now = utcnow()
 
+        max_threads = self.max_active_threads_per_account or 0
+        active_counts: dict[int, int]
+        if max_threads > 0 and candidate_account_ids:
+            active_counts = dict(
+                self.db.query(Comment.account_id, func.count())
+                .filter(
+                    Comment.account_id.in_(candidate_account_ids),
+                    Comment.result.is_(None),
+                )
+                .group_by(Comment.account_id)
+                .all()
+            )
+        else:
+            active_counts = {}
+
         for assignment, account in assignments:
             if account.status != AccountStatus.ACTIVE or account.is_paused:
                 continue
@@ -167,7 +186,16 @@ class CommentEngine:
             if task is None:
                 continue
 
+            if max_threads > 0:
+                current_active = active_counts.get(account.id, 0)
+                if current_active >= max_threads:
+                    continue
+            else:
+                current_active = 0
+
             eligible.append((task, account))
+            if max_threads > 0:
+                active_counts[account.id] = current_active + 1
 
         throttler = self.throttler or AdaptiveThrottle(self.db)
         allowed = throttler.allowed_for(channel.project_id, len(eligible))
