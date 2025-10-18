@@ -15,6 +15,7 @@ from .channels import (
     ChannelImportRequest,
 )
 from .history import HistoryEntry, HistoryResponse
+from .llm import CommentGenerationRequest, ProfileGenerationRequest
 from .playlists import PlaylistAssignChannelsRequest, PlaylistCreateRequest, PlaylistUpdateRequest
 from .proxies import (
     ProxyCheckRequest,
@@ -46,8 +47,10 @@ __all__ = [
     "ChannelAssignAccountsRequest",
     "ChannelCreate",
     "ChannelImportRequest",
+    "CommentGenerationRequest",
     "HistoryEntry",
     "HistoryResponse",
+    "ProfileGenerationRequest",
     "PlaylistAssignChannelsRequest",
     "PlaylistCreateRequest",
     "PlaylistUpdateRequest",

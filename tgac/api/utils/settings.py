@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(..., env="TELEGRAM_BOT_TOKEN")
     telegram_deeplink_ttl_min: int = Field(10, env="TELEGRAM_DEEPLINK_TTL_MIN")
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
+    openai_model: str = Field("gpt-3.5-turbo", env="OPENAI_MODEL")
+    openai_max_tokens: int = Field(240, env="OPENAI_MAX_TOKENS")
     sms_activate_api_key: Optional[str] = Field(None, env="SMS_ACTIVATE_API_KEY")
     sms_activate_poll_interval_seconds: int = Field(30, env="SMS_ACTIVATE_POLL_INTERVAL_SECONDS")
     sms_activate_max_poll_attempts: int = Field(10, env="SMS_ACTIVATE_MAX_POLL_ATTEMPTS")
