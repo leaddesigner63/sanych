@@ -8,6 +8,7 @@ from .comment_engine import CommentEngine
 from .export import ExportService
 from .history import HistoryService
 from .metrics import MetricsService
+from .llm import LlmService
 from .observer import ObserverService
 from .playlists import PlaylistService
 from .scheduler_core import SchedulerCore
@@ -22,6 +23,7 @@ __all__ = [
     "CommentEngine",
     "ExportService",
     "HistoryService",
+    "LlmService",
     "MetricsService",
     "ObserverService",
     "PlaylistService",
