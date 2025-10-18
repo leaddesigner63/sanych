@@ -3,14 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Callable, Protocol
+from uuid import uuid4
 
 import httpx
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.core import Account, AccountStatus, Job, JobType
+from ..models.core import Account, AccountStatus, Job, JobType, Proxy, ProxyScheme
 from ..utils.crypto import encrypt_session
 from ..utils.settings import get_settings
 from ..utils.time import utcnow
+from .accounts import MAX_ACCOUNTS_PER_PROXY
+from .brightdata import BrightDataClient, BrightDataError, BrightDataProxy
 from .scheduler_core import SchedulerCore
 
 
@@ -156,10 +160,14 @@ class AutoRegService:
         poll_interval_seconds: int | None = None,
         max_poll_attempts: int | None = None,
         session_factory: Callable[[str, str, dict], bytes] | None = None,
+        brightdata_client: BrightDataClient | None = None,
+        brightdata_zone: str = "residential",
     ) -> None:
         self.db = db
         self.scheduler = scheduler
         self.sms_provider = sms_provider
+        self._brightdata_client = brightdata_client
+        self.brightdata_zone = brightdata_zone
 
         settings = get_settings()
         self.poll_interval_seconds = (
@@ -209,6 +217,15 @@ class AutoRegService:
     def _handle_request_number(self, job: Job) -> AutoRegStepResult:
         project_id = self._require(job.payload, "project_id")
         country = job.payload.get("country", "0")
+        metadata = dict(job.payload.get("metadata", {}))
+
+        try:
+            metadata = self._ensure_proxy_metadata(
+                project_id, metadata, country=country
+            )
+        except AutoRegServiceError as exc:
+            return AutoRegStepResult(False, error=str(exc))
+
         try:
             activation = self.sms_provider.request_number(service="tg", country=country)
         except SmsProviderError as exc:
@@ -219,7 +236,7 @@ class AutoRegService:
             "project_id": project_id,
             "activation_id": activation.activation_id,
             "phone": activation.phone_number,
-            "metadata": job.payload.get("metadata", {}),
+            "metadata": metadata,
             "attempts": 0,
         }
         return AutoRegStepResult(
@@ -231,7 +248,7 @@ class AutoRegService:
         activation_id = self._require(job.payload, "activation_id")
         phone = self._require(job.payload, "phone")
         attempts = int(job.payload.get("attempts", 0))
-        metadata = job.payload.get("metadata", {})
+        metadata = dict(job.payload.get("metadata", {}))
 
         try:
             code = self.sms_provider.fetch_code(activation_id)
@@ -297,10 +314,100 @@ class AutoRegService:
             account.tags = metadata["tags"]
         if "notes" in metadata:
             account.notes = metadata["notes"]
-        if "proxy_id" in metadata:
-            account.proxy_id = metadata["proxy_id"]
+        if "proxy_id" in metadata and metadata["proxy_id"] is not None:
+            account.proxy_id = int(metadata["proxy_id"])
 
         return account
+
+    def _ensure_proxy_metadata(
+        self, project_id: int, metadata: dict, *, country: str | None
+    ) -> dict:
+        if proxy_id := metadata.get("proxy_id"):
+            proxy = self.db.get(Proxy, int(proxy_id))
+            if proxy is None or proxy.project_id != project_id:
+                raise AutoRegServiceError("Provided proxy is not available for project")
+            return metadata
+
+        proxy = self._find_available_proxy(project_id)
+        if proxy is None:
+            proxy = self._create_proxy_from_brightdata(project_id, country=country)
+
+        metadata = dict(metadata)
+        metadata["proxy_id"] = proxy.id
+        return metadata
+
+    def _find_available_proxy(self, project_id: int) -> Proxy | None:
+        rows = (
+            self.db.query(Proxy, func.count(Account.id))
+            .outerjoin(Account, Account.proxy_id == Proxy.id)
+            .filter(Proxy.project_id == project_id, Proxy.is_working.is_(True))
+            .group_by(Proxy.id)
+            .order_by(func.count(Account.id).asc(), Proxy.id.asc())
+            .all()
+        )
+        for proxy, count in rows:
+            if count < MAX_ACCOUNTS_PER_PROXY:
+                return proxy
+        return None
+
+    def _create_proxy_from_brightdata(
+        self, project_id: int, *, country: str | None
+    ) -> Proxy:
+        client = self._get_brightdata_client()
+        session_id = uuid4().hex
+        try:
+            proxy_info = client.request_proxy(
+                zone=self.brightdata_zone, country=country, session_id=session_id
+            )
+        except BrightDataError as exc:
+            raise AutoRegServiceError(
+                f"Failed to reserve Bright Data proxy: {exc}"
+            ) from exc
+
+        name = self._generate_proxy_name(proxy_info)
+        scheme = self._scheme_from_protocol(proxy_info.protocol)
+
+        proxy = Proxy(
+            project_id=project_id,
+            name=name,
+            scheme=scheme,
+            host=proxy_info.host,
+            port=proxy_info.port,
+            username=proxy_info.username,
+            password=proxy_info.password,
+            is_working=True,
+        )
+        self.db.add(proxy)
+        self.db.commit()
+        self.db.refresh(proxy)
+        return proxy
+
+    @staticmethod
+    def _scheme_from_protocol(protocol: str) -> ProxyScheme:
+        proto = (protocol or "http").lower()
+        if proto.startswith("socks"):
+            return ProxyScheme.SOCKS5
+        return ProxyScheme.HTTP
+
+    @staticmethod
+    def _generate_proxy_name(proxy: BrightDataProxy) -> str:
+        suffix = uuid4().hex[:8]
+        country = (proxy.country or "global").lower()
+        zone = proxy.zone.lower()
+        return f"brightdata-{zone}-{country}-{suffix}"
+
+    def _get_brightdata_client(self) -> BrightDataClient:
+        if self._brightdata_client is not None:
+            return self._brightdata_client
+
+        settings = get_settings()
+        username = getattr(settings, "brightdata_username", None)
+        password = getattr(settings, "brightdata_password", None)
+        if not username or not password:
+            raise AutoRegServiceError("Bright Data credentials are not configured")
+
+        self._brightdata_client = BrightDataClient(username, password)
+        return self._brightdata_client
 
     @staticmethod
     def _require(payload: dict, key: str) -> int | str:
