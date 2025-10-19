@@ -44,7 +44,9 @@ def setup_module(module):
     module.TestingSession = TestingSession
 
 
-def create_project_with_entities(session: Session, *, suffix: str | None = None) -> tuple[Project, Account, Task, Comment]:
+def create_project_with_entities(
+    session: Session, *, suffix: str | None = None
+) -> tuple[Project, Account, Task, Comment, Channel]:
     suffix = suffix or uuid4().hex
     numeric_suffix = ("".join(ch for ch in suffix if ch.isdigit()) or "0")[:3].ljust(3, "0")
 
@@ -91,6 +93,7 @@ def create_project_with_entities(session: Session, *, suffix: str | None = None)
     )
     session.add(channel)
     session.flush()
+    channel.last_scanned_at = utcnow() - timedelta(minutes=15)
 
     playlist = Playlist(project_id=project.id, name=f"Playlist {suffix}", desc="desc")
     session.add(playlist)
@@ -120,13 +123,14 @@ def create_project_with_entities(session: Session, *, suffix: str | None = None)
     session.add(comment)
     session.commit()
 
-    return project, account, task, comment
+    return project, account, task, comment, channel
 
 
 def test_history_service_orders_by_sent_at_descending():
     session = TestingSession()
     try:
-        project, account, task, comment = create_project_with_entities(session)
+        project, account, task, comment, channel = create_project_with_entities(session)
+        del channel
 
         older_comment = Comment(
             account_id=account.id,
@@ -165,7 +169,7 @@ def test_history_service_validates_entities():
 def test_export_service_creates_zip_archive():
     session = TestingSession()
     try:
-        project, account, task, comment = create_project_with_entities(session)
+        project, account, task, comment, channel = create_project_with_entities(session)
 
         service = ExportService(session)
         payload = service.build_project_archive(project.id)
@@ -189,6 +193,10 @@ def test_export_service_creates_zip_archive():
 
         accounts_data = json.loads(archive.read("accounts.json"))
         assert accounts_data[0]["phone"] == account.phone
+
+        channels_data = json.loads(archive.read("channels.json"))
+        assert channels_data[0]["id"] == channel.id
+        assert channels_data[0]["last_scanned_at"] == channel.last_scanned_at.isoformat()
 
         tasks_data = json.loads(archive.read("tasks.json"))
         assert tasks_data[0]["assignments"] == [account.id]

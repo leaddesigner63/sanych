@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from ..models.core import (
     Account,
     AccountStatus,
+    Channel,
     Comment,
     CommentResult,
     Job,
@@ -105,6 +106,76 @@ class SchedulerCore:
                 continue
             self.enqueue(JobType.HEALTHCHECK, {"account_id": int(account_id)})
             scheduled += 1
+        return scheduled
+
+    def plan_channel_scans(
+        self,
+        *,
+        stale_after: timedelta | None = None,
+        limit: int | None = None,
+    ) -> int:
+        """Schedule scan jobs for active channels that require refresh."""
+
+        if stale_after is None or limit is None:
+            settings = get_settings()
+            if stale_after is None:
+                minutes = max(getattr(settings, "channel_scan_interval_minutes", 0), 0)
+                stale_after = timedelta(minutes=minutes)
+            if limit is None:
+                limit = max(getattr(settings, "channel_scan_batch_size", 0), 0)
+
+        assert stale_after is not None
+        assert limit is not None
+
+        if stale_after <= timedelta(0) or limit <= 0:
+            return 0
+
+        cutoff = utcnow() - stale_after
+
+        active_statuses = (JobStatus.PENDING, JobStatus.RUNNING)
+        existing_rows = (
+            self.db.query(Job.payload["channel_id"].as_integer())
+            .filter(Job.type == JobType.SCAN_CHANNELS, Job.status.in_(active_statuses))
+            .all()
+        )
+        busy_channels = {
+            int(row[0])
+            for row in existing_rows
+            if row[0] is not None
+        }
+
+        query = (
+            self.db.query(Channel)
+            .filter(Channel.active.is_(True))
+            .filter(
+                or_(
+                    Channel.last_scanned_at.is_(None),
+                    Channel.last_scanned_at < cutoff,
+                )
+            )
+            .order_by(
+                Channel.last_scanned_at.is_(None).desc(),
+                Channel.last_scanned_at.asc(),
+                Channel.id.asc(),
+            )
+        )
+
+        if limit:
+            query = query.limit(limit)
+
+        channels = query.all()
+        if not channels:
+            return 0
+
+        now = utcnow()
+        scheduled = 0
+        for channel in channels:
+            if channel.id in busy_channels:
+                continue
+            channel.last_scanned_at = now
+            self.enqueue(JobType.SCAN_CHANNELS, {"channel_id": int(channel.id)})
+            scheduled += 1
+
         return scheduled
 
     def pick_next_job(self, worker_id: str) -> Job | None:

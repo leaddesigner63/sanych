@@ -58,6 +58,18 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         type_=int,
         default=5,
     ),
+    "CHANNEL_SCAN_INTERVAL_MINUTES": SettingSpec(
+        key="CHANNEL_SCAN_INTERVAL_MINUTES",
+        attr="channel_scan_interval_minutes",
+        type_=int,
+        default=15,
+    ),
+    "CHANNEL_SCAN_BATCH_SIZE": SettingSpec(
+        key="CHANNEL_SCAN_BATCH_SIZE",
+        attr="channel_scan_batch_size",
+        type_=int,
+        default=50,
+    ),
 }
 
 

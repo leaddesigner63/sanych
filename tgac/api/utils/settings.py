@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     account_healthcheck_batch_size: int = Field(
         100, env="ACCOUNT_HEALTHCHECK_BATCH_SIZE"
     )
+    channel_scan_interval_minutes: int = Field(15, env="CHANNEL_SCAN_INTERVAL_MINUTES")
+    channel_scan_batch_size: int = Field(50, env="CHANNEL_SCAN_BATCH_SIZE")
     default_project_quota: int = Field(5, env="DEFAULT_PROJECT_QUOTA")
 
     worker_shards: int = Field(1, env="WORKER_SHARDS")

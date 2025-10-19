@@ -139,6 +139,78 @@ def test_plan_healthchecks_skips_recent_and_existing_jobs():
         session.close()
 
 
+def test_plan_channel_scans_schedules_jobs_for_stale_channels():
+    session = TestingSession()
+    try:
+        post, channel, _ = _make_post(session, "scan")
+        del post  # unused
+        previous_scan = utcnow() - timedelta(hours=3)
+        channel.last_scanned_at = previous_scan
+        session.commit()
+
+        core = SchedulerCore(session, comment_collision_limit=1)
+        scheduled = core.plan_channel_scans(stale_after=timedelta(hours=1), limit=5)
+
+        assert scheduled == 1
+        job = session.query(Job).filter(Job.type == JobType.SCAN_CHANNELS).one()
+        assert job.payload["channel_id"] == channel.id
+        session.refresh(channel)
+        assert channel.last_scanned_at is not None
+        assert channel.last_scanned_at > previous_scan
+    finally:
+        session.close()
+
+
+def test_plan_channel_scans_skips_channels_with_pending_jobs():
+    session = TestingSession()
+    try:
+        _, channel_a, _ = _make_post(session, "scan-a")
+        _, channel_b, _ = _make_post(session, "scan-b")
+        channel_a.last_scanned_at = utcnow() - timedelta(hours=2)
+        channel_b.last_scanned_at = utcnow() - timedelta(hours=2)
+        session.flush()
+
+        pending_job = Job(
+            type=JobType.SCAN_CHANNELS,
+            payload={"channel_id": channel_a.id},
+            status=JobStatus.PENDING,
+        )
+        session.add(pending_job)
+        session.commit()
+
+        core = SchedulerCore(session, comment_collision_limit=1)
+        scheduled = core.plan_channel_scans(stale_after=timedelta(minutes=10), limit=5)
+
+        assert scheduled == 1
+        jobs = session.query(Job).filter(Job.type == JobType.SCAN_CHANNELS).all()
+        channel_ids = [job.payload["channel_id"] for job in jobs]
+        assert channel_ids.count(channel_a.id) == 1
+        assert channel_ids.count(channel_b.id) == 1
+    finally:
+        session.close()
+
+
+def test_plan_channel_scans_honors_limit():
+    session = TestingSession()
+    try:
+        _, channel_a, _ = _make_post(session, "limit-a")
+        _, channel_b, _ = _make_post(session, "limit-b")
+        _, channel_c, _ = _make_post(session, "limit-c")
+        for channel in (channel_a, channel_b, channel_c):
+            channel.last_scanned_at = utcnow() - timedelta(hours=5)
+        session.commit()
+
+        core = SchedulerCore(session, comment_collision_limit=1)
+        scheduled = core.plan_channel_scans(stale_after=timedelta(minutes=1), limit=1)
+
+        assert scheduled == 1
+        jobs = session.query(Job).filter(Job.type == JobType.SCAN_CHANNELS).all()
+        assert len(jobs) == 1
+        assert jobs[0].payload["channel_id"] == min(channel_a.id, channel_b.id, channel_c.id)
+    finally:
+        session.close()
+
+
 def test_plan_for_posts_skips_when_success_comment_exists():
     session = TestingSession()
     try:

@@ -29,6 +29,9 @@ def list_channels(db: Session = Depends(get_db)) -> DataResponse:
                 "title": channel.title,
                 "username": channel.username,
                 "active": channel.active,
+                "last_scanned_at": channel.last_scanned_at.isoformat()
+                if channel.last_scanned_at
+                else None,
             }
             for channel in channels
         ]
