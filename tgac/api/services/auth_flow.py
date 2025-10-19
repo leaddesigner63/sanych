@@ -58,13 +58,21 @@ class AuthService:
         except BadSignature as exc:  # pragma: no cover - defensive
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session") from exc
 
-    def find_or_create_user(self, username: str) -> User:
+    def find_or_create_user(self, username: str, telegram_id: int | None = None) -> User:
+        """Return an existing user or create a new admin with optional Telegram binding."""
+
         user = self.db.query(User).filter(User.username == username).one_or_none()
         if user:
+            if telegram_id is not None and user.telegram_id != telegram_id:
+                user.telegram_id = telegram_id
+                self.db.commit()
+                self.db.refresh(user)
             return user
+
         if username != self.settings.admin_tg_username:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User not allowed")
-        user = User(username=username, role=UserRole.ADMIN)
+
+        user = User(username=username, role=UserRole.ADMIN, telegram_id=telegram_id)
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)

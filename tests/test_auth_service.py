@@ -40,3 +40,20 @@ def test_create_login_token(session):
     service = AuthService(session)
     token = service.create_login_token()
     assert token.token
+
+
+def test_find_or_create_user_links_telegram(session):
+    service = AuthService(session)
+    user = service.find_or_create_user("admin_username", telegram_id=123456)
+    assert user.telegram_id == 123456
+    assert user.username == "admin_username"
+
+
+def test_find_or_create_user_updates_existing_chat(session):
+    service = AuthService(session)
+    first = service.find_or_create_user("admin_username", telegram_id=111)
+    assert first.telegram_id == 111
+
+    updated = service.find_or_create_user("admin_username", telegram_id=222)
+    assert updated.id == first.id
+    assert updated.telegram_id == 222
