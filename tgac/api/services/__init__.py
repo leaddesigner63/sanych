@@ -15,6 +15,7 @@ from .playlists import PlaylistService
 from .projects import ProjectService
 from .scheduler_core import SchedulerCore
 from .settings import SettingsService
+from .simulation import SimulationService
 from .subscription import SubscriptionService
 from .throttle import AdaptiveThrottle
 from .tasks import TaskService
@@ -36,6 +37,7 @@ __all__ = [
     "SchedulerCore",
     "SettingsService",
     "SubscriptionService",
+    "SimulationService",
     "AdaptiveThrottle",
     "TaskService",
 ]

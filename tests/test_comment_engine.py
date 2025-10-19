@@ -153,6 +153,69 @@ def test_plan_for_post_filters_accounts_and_deduplicates():
         session.close()
 
 
+class _FixedThrottle:
+    def __init__(self, allowed: int) -> None:
+        self.allowed = allowed
+
+    def allowed_for(self, project_id: int, candidates: int) -> int:  # pragma: no cover - simple helper
+        return min(self.allowed, candidates)
+
+
+def test_preview_for_post_identifies_ready_throttled_and_pending():
+    session = TestingSession()
+    try:
+        project, channel, post, task, account = _make_project(session)
+
+        subscribed_account = Account(
+            project_id=project.id,
+            phone="+79990000010",
+            session_enc=b"enc",
+            status=AccountStatus.ACTIVE,
+        )
+        session.add(subscribed_account)
+        session.flush()
+        session.add(TaskAssignment(task_id=task.id, account_id=subscribed_account.id))
+        session.add(
+            AccountChannelMap(
+                account_id=subscribed_account.id,
+                channel_id=channel.id,
+                is_subscribed=True,
+            )
+        )
+
+        pending_account = Account(
+            project_id=project.id,
+            phone="+79990000011",
+            session_enc=b"enc",
+            status=AccountStatus.ACTIVE,
+        )
+        session.add(pending_account)
+        session.flush()
+        session.add(TaskAssignment(task_id=task.id, account_id=pending_account.id))
+        session.add(
+            AccountChannelMap(
+                account_id=pending_account.id,
+                channel_id=channel.id,
+                is_subscribed=False,
+            )
+        )
+        session.commit()
+
+        engine = CommentEngine(session, throttler=_FixedThrottle(1))
+        preview = engine.preview_for_post(post.id)
+
+        ready_ids = {item.account_id for item in preview.ready}
+        throttled_ids = {item.account_id for item in preview.throttled}
+        pending_ids = {item.account_id for item in preview.pending_subscription}
+
+        assert ready_ids == {account.id}
+        assert throttled_ids == {subscribed_account.id}
+        assert pending_ids == {pending_account.id}
+        assert preview.telegram_post_id == post.post_id
+    finally:
+        session.close()
+
+
 def test_send_comment_records_outcome():
     session = TestingSession()
     try:

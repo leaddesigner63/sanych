@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
 from ..models.core import Task, TaskStatus
 from ..schemas.common import DataResponse
+from ..schemas.simulation import DryRunResponse, PlanPreviewSchema
 from ..schemas.tasks import (
     TaskAssignRequest,
     TaskAssignResponse,
@@ -14,6 +15,7 @@ from ..schemas.tasks import (
     TaskStatsResponse,
     TaskUpdateRequest,
 )
+from ..services.simulation import SimulationService, SimulationServiceError
 from ..services.tasks import AssignmentSummary, TaskService, TaskServiceError
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -24,6 +26,10 @@ def _serialize_task(task: Task) -> dict:
 
 
 def _handle_service_error(exc: TaskServiceError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=str(exc))
+
+
+def _handle_simulation_error(exc: SimulationServiceError) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=str(exc))
 
 
@@ -101,6 +107,26 @@ def assign_accounts(task_id: int, payload: TaskAssignRequest, db: Session = Depe
     except TaskServiceError as exc:  # pragma: no cover - FastAPI handles in runtime
         raise _handle_service_error(exc)
     response = _assignment_response(task_id, summary)
+    return DataResponse(data=response.model_dump(mode="json"))
+
+
+@router.get("/{task_id}/dry-run", response_model=DataResponse)
+def dry_run(
+    task_id: int,
+    limit: int = Query(5, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> DataResponse:
+    service = SimulationService(db)
+    try:
+        previews = service.task_dry_run(task_id, limit=limit)
+    except SimulationServiceError as exc:  # pragma: no cover - FastAPI handles runtime conversion
+        raise _handle_simulation_error(exc)
+
+    serialized = [
+        PlanPreviewSchema.model_validate(result.preview, from_attributes=True)
+        for result in previews
+    ]
+    response = DryRunResponse(items=serialized, count=len(serialized))
     return DataResponse(data=response.model_dump(mode="json"))
 
 

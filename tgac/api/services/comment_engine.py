@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Iterable
 
@@ -48,6 +49,35 @@ class SendResult:
 
 
 SendCallback = Callable[[Comment], SendResult]
+
+
+@dataclass(frozen=True, slots=True)
+class PreviewAssignment:
+    """Lightweight representation of an assignment selected during planning."""
+
+    task_id: int
+    account_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class PlanPreview:
+    """Summary of how the engine would act for a given post."""
+
+    post_id: int
+    channel_id: int
+    telegram_post_id: int
+    detected_at: datetime | None
+    ready: list[PreviewAssignment]
+    throttled: list[PreviewAssignment]
+    pending_subscription: list[PreviewAssignment]
+
+
+@dataclass(frozen=True, slots=True)
+class _AssignmentCandidate:
+    """Internal container holding task/account pairs during planning."""
+
+    task: Task
+    account: Account
 
 
 class CommentEngineError(Exception):
@@ -100,116 +130,33 @@ class CommentEngine:
         if channel is None:
             raise PostNotFound(f"Channel {post.channel_id} for post {post_id} not found")
 
-        tasks = (
-            self.db.query(Task)
-            .filter(
-                Task.project_id == channel.project_id,
-                Task.status == TaskStatus.ON,
-                Task.mode == TaskMode.NEW_POSTS,
-            )
-            .all()
-        )
-        if not tasks:
+        candidates, pending = self._compute_candidates(post, channel)
+        if not candidates and not pending:
+            self.db.flush()
             return []
 
-        task_map = {task.id: task for task in tasks}
-
-        assignments: Iterable[tuple[TaskAssignment, Account]] = (
-            self.db.query(TaskAssignment, Account)
-            .join(Account, TaskAssignment.account_id == Account.id)
-            .filter(TaskAssignment.task_id.in_(task_map.keys()))
-            .all()
-        )
-
-        assignments = list(assignments)
-        if not assignments:
-            return []
-
-        channel_mappings = {
-            mapping.account_id: mapping
-            for mapping in (
-                self.db.query(AccountChannelMap)
-                .filter(AccountChannelMap.channel_id == channel.id)
-                .all()
-            )
-        }
-
-        candidate_account_ids = [account.id for _, account in assignments]
-        existing_pairs = {
-            account_id
-            for (account_id,) in (
-                self.db.query(Comment.account_id)
-                .filter(
-                    Comment.channel_id == channel.id,
-                    Comment.post_id == post.post_id,
-                    Comment.account_id.in_(candidate_account_ids),
-                )
-                .all()
-            )
-            if account_id is not None
-        }
-
-        eligible: list[tuple[Task, Account]] = []
-        subscribe_jobs: list[Job] = []
-        now = utcnow()
-
-        max_threads = self.max_active_threads_per_account or 0
-        active_counts: dict[int, int]
-        if max_threads > 0 and candidate_account_ids:
-            active_counts = dict(
-                self.db.query(Comment.account_id, func.count())
-                .filter(
-                    Comment.account_id.in_(candidate_account_ids),
-                    Comment.result.is_(None),
-                )
-                .group_by(Comment.account_id)
-                .all()
-            )
-        else:
-            active_counts = {}
-
-        for assignment, account in assignments:
-            if account.status != AccountStatus.ACTIVE or account.is_paused:
-                continue
-            mapping = channel_mappings.get(account.id)
-            if channel_mappings and mapping is None:
-                continue
-            if mapping is not None and not mapping.is_subscribed:
-                job = self._ensure_subscription_job(account.id, channel.id, post)
-                if job is not None:
-                    subscribe_jobs.append(job)
-                continue
-            if account.id in existing_pairs:
-                continue
-
-            task = task_map.get(assignment.task_id)
-            if task is None:
-                continue
-
-            if max_threads > 0:
-                current_active = active_counts.get(account.id, 0)
-                if current_active >= max_threads:
-                    continue
-            else:
-                current_active = 0
-
-            eligible.append((task, account))
-            if max_threads > 0:
-                active_counts[account.id] = current_active + 1
+        subscribe_jobs_created = False
+        for candidate in pending:
+            job = self._ensure_subscription_job(candidate.account.id, channel.id, post)
+            if job is not None:
+                subscribe_jobs_created = True
 
         throttler = self.throttler or AdaptiveThrottle(self.db)
-        allowed = throttler.allowed_for(channel.project_id, len(eligible))
-        selected = eligible[:allowed]
+        allowed = throttler.allowed_for(channel.project_id, len(candidates))
+        selected = candidates[:allowed]
 
         if not selected:
-            if subscribe_jobs:
+            if subscribe_jobs_created:
                 self.db.commit()
             else:
                 self.db.flush()
             return []
 
+        now = utcnow()
         created: list[Comment] = []
-        for task, account in selected:
+        for candidate in selected:
+            task = candidate.task
+            account = candidate.account
             template = (task.config or {}).get("template") if task.config else None
             rendered = self.renderer(task, post, account)
 
@@ -239,6 +186,42 @@ class CommentEngine:
             self.event_logger.comment_planned(comment)
 
         return created
+
+    def preview_for_post(self, post_id: int) -> PlanPreview:
+        """Return a dry-run preview for how comments would be planned."""
+
+        post = self.db.get(Post, post_id)
+        if post is None:
+            raise PostNotFound(f"Post {post_id} not found")
+
+        channel = self.db.get(Channel, post.channel_id)
+        if channel is None:
+            raise PostNotFound(f"Channel {post.channel_id} for post {post_id} not found")
+
+        candidates, pending = self._compute_candidates(post, channel)
+        throttler = self.throttler or AdaptiveThrottle(self.db)
+        allowed = throttler.allowed_for(channel.project_id, len(candidates))
+        ready = candidates[:allowed]
+        throttled = candidates[allowed:]
+
+        return PlanPreview(
+            post_id=post.id,
+            channel_id=channel.id,
+            telegram_post_id=post.post_id,
+            detected_at=post.detected_at,
+            ready=[
+                PreviewAssignment(task_id=candidate.task.id, account_id=candidate.account.id)
+                for candidate in ready
+            ],
+            throttled=[
+                PreviewAssignment(task_id=candidate.task.id, account_id=candidate.account.id)
+                for candidate in throttled
+            ],
+            pending_subscription=[
+                PreviewAssignment(task_id=candidate.task.id, account_id=candidate.account.id)
+                for candidate in pending
+            ],
+        )
 
     def _ensure_subscription_job(self, account_id: int, channel_id: int, post: Post) -> Job | None:
         """Create a subscription job if one is not already pending."""
@@ -306,6 +289,104 @@ class CommentEngine:
     def _default_sender(comment: Comment) -> SendResult:
         return SendResult(result=CommentResult.SUCCESS)
 
+    def _compute_candidates(
+        self, post: Post, channel: Channel
+    ) -> tuple[list[_AssignmentCandidate], list[_AssignmentCandidate]]:
+        tasks = (
+            self.db.query(Task)
+            .filter(
+                Task.project_id == channel.project_id,
+                Task.status == TaskStatus.ON,
+                Task.mode == TaskMode.NEW_POSTS,
+            )
+            .all()
+        )
+        if not tasks:
+            return [], []
+
+        task_map = {task.id: task for task in tasks}
+        assignments: Iterable[tuple[TaskAssignment, Account]] = (
+            self.db.query(TaskAssignment, Account)
+            .join(Account, TaskAssignment.account_id == Account.id)
+            .filter(TaskAssignment.task_id.in_(task_map.keys()))
+            .all()
+        )
+        assignments = list(assignments)
+        if not assignments:
+            return [], []
+
+        channel_mappings = {
+            mapping.account_id: mapping
+            for mapping in (
+                self.db.query(AccountChannelMap)
+                .filter(AccountChannelMap.channel_id == channel.id)
+                .all()
+            )
+        }
+
+        candidate_account_ids = [account.id for _, account in assignments]
+        existing_pairs = {
+            account_id
+            for (account_id,) in (
+                self.db.query(Comment.account_id)
+                .filter(
+                    Comment.channel_id == channel.id,
+                    Comment.post_id == post.post_id,
+                    Comment.account_id.in_(candidate_account_ids),
+                )
+                .all()
+            )
+            if account_id is not None
+        }
+
+        max_threads = self.max_active_threads_per_account or 0
+        if max_threads > 0 and candidate_account_ids:
+            active_counts = dict(
+                self.db.query(Comment.account_id, func.count())
+                .filter(
+                    Comment.account_id.in_(candidate_account_ids),
+                    Comment.result.is_(None),
+                )
+                .group_by(Comment.account_id)
+                .all()
+            )
+        else:
+            active_counts = {}
+
+        eligible: list[_AssignmentCandidate] = []
+        pending_subscriptions: list[_AssignmentCandidate] = []
+
+        for assignment, account in assignments:
+            if account.status != AccountStatus.ACTIVE or account.is_paused:
+                continue
+
+            mapping = channel_mappings.get(account.id)
+            if channel_mappings and mapping is None:
+                continue
+
+            if mapping is not None and not mapping.is_subscribed:
+                task = task_map.get(assignment.task_id)
+                if task is not None:
+                    pending_subscriptions.append(_AssignmentCandidate(task=task, account=account))
+                continue
+
+            if account.id in existing_pairs:
+                continue
+
+            task = task_map.get(assignment.task_id)
+            if task is None:
+                continue
+
+            if max_threads > 0:
+                current_active = active_counts.get(account.id, 0)
+                if current_active >= max_threads:
+                    continue
+                active_counts[account.id] = current_active + 1
+
+            eligible.append(_AssignmentCandidate(task=task, account=account))
+
+        return eligible, pending_subscriptions
+
 
 __all__ = [
     "CommentEngine",
@@ -315,5 +396,7 @@ __all__ = [
     "SendResult",
     "TemplateRenderer",
     "SendCallback",
+    "PlanPreview",
+    "PreviewAssignment",
 ]
 
