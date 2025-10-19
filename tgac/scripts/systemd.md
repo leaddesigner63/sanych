@@ -12,7 +12,7 @@ After=network-online.target
 EnvironmentFile=/opt/tgac/.env
 WorkingDirectory=/opt/tgac
 Environment=PYTHONPATH=/opt/tgac
-ExecStart=/opt/tgac/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8080
+ExecStart=/opt/tgac/venv/bin/python -m uvicorn tgac.api.main:app --host 0.0.0.0 --port 8080
 Restart=always
 
 [Install]
@@ -29,7 +29,7 @@ After=tgac-api.service
 EnvironmentFile=/opt/tgac/.env
 WorkingDirectory=/opt/tgac
 Environment=PYTHONPATH=/opt/tgac
-ExecStart=/opt/tgac/venv/bin/python -m workers.scheduler
+ExecStart=/opt/tgac/venv/bin/python -m tgac.workers.scheduler
 Restart=always
 
 [Install]
@@ -46,7 +46,7 @@ After=tgac-scheduler.service
 EnvironmentFile=/opt/tgac/.env
 WorkingDirectory=/opt/tgac
 Environment=PYTHONPATH=/opt/tgac
-ExecStart=/opt/tgac/venv/bin/python -m workers.worker
+ExecStart=/opt/tgac/venv/bin/python -m tgac.workers.worker
 Restart=always
 
 [Install]
@@ -63,7 +63,7 @@ After=tgac-scheduler.service
 EnvironmentFile=/opt/tgac/.env
 WorkingDirectory=/opt/tgac
 Environment=PYTHONPATH=/opt/tgac
-ExecStart=/opt/tgac/venv/bin/python -m workers.observer
+ExecStart=/opt/tgac/venv/bin/python -m tgac.workers.observer
 Restart=always
 
 [Install]
@@ -80,7 +80,7 @@ After=network-online.target
 EnvironmentFile=/opt/tgac/.env
 WorkingDirectory=/opt/tgac
 Environment=PYTHONPATH=/opt/tgac
-ExecStart=/opt/tgac/venv/bin/python -m bot.app
+ExecStart=/opt/tgac/venv/bin/python -m tgac.bot.app
 Restart=always
 
 [Install]
