@@ -27,8 +27,9 @@ def exchange_login_token(payload: dict, response: Response, service: AuthService
     chat_id = payload.get("chat_id")
     if not token or not username or not chat_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="login_token, username and chat_id are required")
-    login_token = service.confirm_token(token, username=username, chat_id=int(chat_id))
-    user = service.find_or_create_user(username=username)
+    chat_id_int = int(chat_id)
+    login_token = service.confirm_token(token, username=username, chat_id=chat_id_int)
+    user = service.find_or_create_user(username=username, telegram_id=chat_id_int)
     cookie = service.issue_session(user)
     response.set_cookie("tgac_session", cookie, httponly=True, samesite="lax")
     return login_token_response(login_token)
