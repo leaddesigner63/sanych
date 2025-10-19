@@ -205,6 +205,7 @@ class ExportService:
                 "link": channel.link,
                 "active": channel.active,
                 "created_at": _serialize_datetime(channel.created_at),
+                "last_scanned_at": _serialize_datetime(channel.last_scanned_at),
             }
             for channel in channels
         ]

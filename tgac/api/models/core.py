@@ -125,6 +125,7 @@ class Channel(Base):
     link: Mapped[Optional[str]] = mapped_column(String(255))
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    last_scanned_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())
 
     playlists: Mapped[list["PlaylistChannel"]] = relationship(back_populates="channel")
 

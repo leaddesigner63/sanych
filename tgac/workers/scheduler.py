@@ -18,11 +18,13 @@ def run_scheduler(poll_interval: int = 5) -> None:
         with SessionLocal(bind=get_engine()) as db:  # type: Session
             core = SchedulerCore(db)
             posts = db.query(Post).limit(10).all()
+            planned_scans = core.plan_channel_scans()
             planned_comments = core.plan_for_posts(posts)
             planned_health = core.plan_healthchecks()
-            if planned_comments or planned_health:
+            if planned_scans or planned_comments or planned_health:
                 logger.info(
-                    "Planned %s comment jobs and %s healthchecks",
+                    "Planned %s channel scans, %s comment jobs and %s healthchecks",
+                    planned_scans,
                     planned_comments,
                     planned_health,
                 )
