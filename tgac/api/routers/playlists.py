@@ -19,8 +19,20 @@ router = APIRouter(prefix="/playlists", tags=["playlists"])
 
 
 @router.get("", response_model=DataResponse)
-def list_playlists(db: Session = Depends(get_db)) -> DataResponse:
-    playlists = db.query(Playlist).order_by(Playlist.id.desc()).limit(200).all()
+def list_playlists(
+    project_id: int | None = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+) -> DataResponse:
+    query = db.query(Playlist)
+    if project_id is not None:
+        query = query.filter(Playlist.project_id == project_id)
+
+    query = query.order_by(Playlist.id.desc())
+    if limit is not None and limit > 0:
+        query = query.limit(limit)
+
+    playlists = query.all()
     return DataResponse(
         data=[
             {
