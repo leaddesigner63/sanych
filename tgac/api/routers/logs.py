@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from __future__ import annotations
+
+from enum import Enum
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
@@ -11,15 +15,44 @@ from ..services.logs import LogMaintenanceService
 router = APIRouter(prefix="/logs", tags=["logs"])
 
 
-@router.get("/tail", response_model=DataResponse)
-def tail_logs(lines: int = 200) -> DataResponse:
-    path = "tgac/logs/app.log"
+class LogSource(str, Enum):
+    """Known log streams that can be tailed via the API."""
+
+    APP = "app"
+    EVENTS = "events"
+
+
+_LOG_PATHS: dict[LogSource, str] = {
+    LogSource.APP: "tgac/logs/app.log",
+    LogSource.EVENTS: "tgac/logs/events.jsonl",
+}
+
+
+def _tail(path: str, lines: int) -> list[str]:
+    """Return the last *lines* lines from *path* if it exists."""
+
+    if lines <= 0:
+        return []
+
     try:
         with open(path, "r", encoding="utf-8") as handle:
-            content = handle.readlines()[-lines:]
+            content = handle.readlines()
     except FileNotFoundError:
-        content = []
-    return DataResponse(data={"lines": content})
+        return []
+
+    if not content:
+        return []
+    return content[-lines:]
+
+
+@router.get("/tail", response_model=DataResponse)
+def tail_logs(
+    lines: int = Query(200, ge=1, le=500),
+    source: LogSource = LogSource.APP,
+) -> DataResponse:
+    path = _LOG_PATHS[source]
+    content = _tail(path, lines)
+    return DataResponse(data={"lines": content, "source": source.value})
 
 
 @router.post("/prune", response_model=DataResponse)

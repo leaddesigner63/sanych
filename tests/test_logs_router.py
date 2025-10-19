@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from tgac.api.models.base import Base
-from tgac.api.routers.logs import prune_logs, tail_logs
+from tgac.api.routers.logs import LogSource, prune_logs, tail_logs
 from tgac.api.services.logs import LogPruneResult
 
 
@@ -43,8 +43,37 @@ def test_tail_logs_reads_requested_lines(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr("builtins.open", fake_open)
 
-    response = tail_logs(lines=2)
-    assert response.data == {"lines": ["second\n", "third\n"]}
+    response = tail_logs(lines=2, source=LogSource.APP)
+    assert response.data == {
+        "lines": ["second\n", "third\n"],
+        "source": LogSource.APP.value,
+    }
+
+
+def test_tail_logs_supports_events_source(monkeypatch, tmp_path) -> None:
+    events_file = tmp_path / "events.jsonl"
+    events_file.write_text("one\ntwo\n", encoding="utf-8")
+
+    original_open = open
+
+    def fake_open(  # type: ignore[override]
+        path: str,
+        mode: str = "r",
+        *args: Any,
+        encoding: str | None = None,
+        **kwargs: Any,
+    ):
+        if path == "tgac/logs/events.jsonl":
+            return original_open(events_file, mode, *args, encoding=encoding, **kwargs)
+        return original_open(path, mode, *args, encoding=encoding, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fake_open)
+
+    response = tail_logs(lines=1, source=LogSource.EVENTS)
+    assert response.data == {
+        "lines": ["two\n"],
+        "source": LogSource.EVENTS.value,
+    }
 
 
 def test_prune_logs_uses_service(monkeypatch) -> None:
