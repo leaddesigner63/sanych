@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.params import Query as QueryParam
 from sqlalchemy.orm import Session
 
 from ..deps import get_db
@@ -24,8 +25,45 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 
 @router.get("", response_model=DataResponse)
-def list_accounts(db: Session = Depends(get_db)) -> DataResponse:
-    accounts = db.query(Account).limit(100).all()
+def list_accounts(
+    db: Session = Depends(get_db),
+    project_id: int | None = None,
+    status: list[AccountStatus] | None = Query(None),
+    tags: list[str] | None = Query(None),
+    is_paused: bool | None = None,
+    proxy_id: int | None = None,
+    limit: int = Query(100, ge=0, le=500),
+) -> DataResponse:
+    query = db.query(Account)
+
+    if project_id is not None:
+        query = query.filter(Account.project_id == project_id)
+
+    if isinstance(status, QueryParam):  # pragma: no cover - FastAPI handles in runtime
+        status = status.default
+    if status:
+        query = query.filter(Account.status.in_(status))
+
+    if is_paused is not None:
+        query = query.filter(Account.is_paused == is_paused)
+
+    if proxy_id is not None:
+        query = query.filter(Account.proxy_id == proxy_id)
+
+    if isinstance(tags, QueryParam):  # pragma: no cover - FastAPI handles in runtime
+        tags = tags.default
+    if tags:
+        for tag in tags:
+            if not tag:
+                continue
+            query = query.filter(Account.tags.ilike(f"%{tag}%"))
+
+    query = query.order_by(Account.id.asc())
+
+    if limit:
+        query = query.limit(limit)
+
+    accounts = query.all()
     return DataResponse(
         data=[
             {
