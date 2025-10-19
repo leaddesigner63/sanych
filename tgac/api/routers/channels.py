@@ -19,8 +19,20 @@ router = APIRouter(prefix="/channels", tags=["channels"])
 
 
 @router.get("", response_model=DataResponse)
-def list_channels(db: Session = Depends(get_db)) -> DataResponse:
-    channels = db.query(Channel).order_by(Channel.id.desc()).limit(200).all()
+def list_channels(
+    project_id: int | None = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+) -> DataResponse:
+    query = db.query(Channel)
+    if project_id is not None:
+        query = query.filter(Channel.project_id == project_id)
+
+    query = query.order_by(Channel.id.desc())
+    if limit is not None and limit > 0:
+        query = query.limit(limit)
+
+    channels = query.all()
     return DataResponse(
         data=[
             {
