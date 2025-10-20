@@ -3,12 +3,14 @@ from __future__ import annotations
 import logging
 import time
 from datetime import timedelta
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from ..api.deps import SessionLocal, get_engine
 from ..api.models.core import Comment
 from ..api.services.observer import ObserverService
+from ..api.utils.event_log import JsonlEventLogger
 from ..api.utils.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,8 @@ def run_observer(poll_interval: int = 30, batch_size: int = 100) -> None:
     logger.info("Observer loop started")
     settings = get_settings()
     stale_minutes = max(settings.comment_visibility_stale_minutes, 0)
+    event_logger = JsonlEventLogger(Path(settings.events_log_path))
+
     while True:
         with SessionLocal(bind=get_engine()) as db:  # type: Session
             service = ObserverService(
@@ -32,6 +36,7 @@ def run_observer(poll_interval: int = 30, batch_size: int = 100) -> None:
                 probe=_default_probe,
                 stale_after=timedelta(minutes=stale_minutes),
                 batch_size=batch_size,
+                event_logger=event_logger,
             )
             processed = service.run_once()
             if processed:

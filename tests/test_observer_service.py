@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -9,6 +9,22 @@ from tgac.api.models.base import Base
 from tgac.api.models.core import Account, Channel, Comment, CommentResult, Project, Task, User
 from tgac.api.services.observer import ObserverService
 from tgac.api.utils.time import utcnow
+
+
+class RecordingLogger:
+    def __init__(self) -> None:
+        self.records: list[tuple[int, bool, datetime]] = []
+
+    def comment_planned(self, comment: Comment) -> None:  # pragma: no cover - noop
+        return
+
+    def comment_sent(self, comment: Comment) -> None:  # pragma: no cover - noop
+        return
+
+    def comment_visibility_checked(
+        self, comment: Comment, *, visible: bool, checked_at: datetime
+    ) -> None:
+        self.records.append((comment.id, visible, checked_at))
 
 
 def setup_module(module):
@@ -84,11 +100,13 @@ def test_run_once_updates_visibility_flags():
             calls.append(record.id)
             return False
 
+        logger = RecordingLogger()
         service = ObserverService(
             session,
             probe=probe,
             stale_after=timedelta(minutes=5),
             batch_size=10,
+            event_logger=logger,
         )
 
         processed = service.run_once()
@@ -98,6 +116,9 @@ def test_run_once_updates_visibility_flags():
         session.refresh(comment)
         assert comment.visible is False
         assert comment.visibility_checked_at is not None
+        assert logger.records == [
+            (comment.id, False, comment.visibility_checked_at)
+        ]
     finally:
         session.close()
 

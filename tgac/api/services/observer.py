@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Callable
 
@@ -10,6 +10,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from ..models.core import Comment, CommentResult
+from ..utils.event_log import CommentEventLogger, NullEventLogger
 from ..utils.time import utcnow
 
 VisibilityProbe = Callable[[Comment], bool]
@@ -23,6 +24,7 @@ class ObserverService:
     probe: VisibilityProbe
     stale_after: timedelta = timedelta(minutes=5)
     batch_size: int = 100
+    event_logger: CommentEventLogger = field(default_factory=NullEventLogger)
 
     def pending_comments(self) -> list[Comment]:
         """Return a batch of comments that require visibility checks."""
@@ -56,6 +58,9 @@ class ObserverService:
             is_visible = self.probe(comment)
             comment.visible = bool(is_visible)
             comment.visibility_checked_at = now
+            self.event_logger.comment_visibility_checked(
+                comment, visible=bool(is_visible), checked_at=now
+            )
             processed += 1
 
         self.db.commit()

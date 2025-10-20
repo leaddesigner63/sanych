@@ -34,6 +34,11 @@ class CommentEventLogger(Protocol):
     def comment_sent(self, comment: Comment) -> None:  # pragma: no cover - protocol
         ...
 
+    def comment_visibility_checked(
+        self, comment: Comment, *, visible: bool, checked_at: datetime
+    ) -> None:  # pragma: no cover - protocol
+        ...
+
 
 @dataclass(slots=True)
 class NullEventLogger:
@@ -43,6 +48,11 @@ class NullEventLogger:
         return
 
     def comment_sent(self, comment: Comment) -> None:  # pragma: no cover - trivial
+        return
+
+    def comment_visibility_checked(
+        self, comment: Comment, *, visible: bool, checked_at: datetime
+    ) -> None:  # pragma: no cover - trivial
         return
 
 
@@ -89,6 +99,23 @@ class JsonlEventLogger:
                 "error_message": comment.error_msg,
                 "sent_at": _isoformat(comment.sent_at),
                 "planned_at": _isoformat(comment.planned_at),
+            }
+        )
+
+    def comment_visibility_checked(
+        self, comment: Comment, *, visible: bool, checked_at: datetime
+    ) -> None:
+        self._write(
+            {
+                "type": "comment_visibility_checked",
+                "comment_id": comment.id,
+                "account_id": comment.account_id,
+                "task_id": comment.task_id,
+                "channel_id": comment.channel_id,
+                "post_id": comment.post_id,
+                "visible": bool(visible),
+                "checked_at": _isoformat(checked_at),
+                "sent_at": _isoformat(comment.sent_at),
             }
         )
 
