@@ -7,18 +7,92 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" />
   </head>
   <body class="bg-slate-100 text-slate-900">
-    <main class="max-w-5xl mx-auto py-10">
-      <h1 class="text-3xl font-bold mb-4">TG-Комбайн</h1>
-      <p class="mb-6">Это стартовая страница административной панели. Основной функционал реализуется через HTMX-компоненты.</p>
-      <section class="grid md:grid-cols-2 gap-4">
-        <article class="p-4 bg-white rounded shadow">
-          <h2 class="text-xl font-semibold mb-2">Авторизация</h2>
-          <p>Войдите через Telegram для доступа к панели управления.</p>
-        </article>
-        <article class="p-4 bg-white rounded shadow">
-          <h2 class="text-xl font-semibold mb-2">Прогресс разработки</h2>
-          <p>Каркас API, моделей данных и сервисов планировщика подготовлен. Дополнительно требуется реализовать бизнес-логику и UI.</p>
-        </article>
+    <main class="max-w-6xl mx-auto py-10 px-4">
+      <header class="mb-8">
+        <h1 class="text-3xl font-bold mb-2">TG-Комбайн</h1>
+        <p class="text-slate-600">
+          Панель управления автокомментингом показывает ключевые метрики и последние проекты.
+        </p>
+      </header>
+
+      <section class="bg-white rounded-xl shadow divide-y divide-slate-100">
+        <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4 p-6">
+          <article>
+            <dl>
+              <dt class="text-sm font-medium text-slate-500">Всего проектов</dt>
+              <dd class="mt-2 text-3xl font-semibold" data-testid="total-projects">{{ summary.projects_total }}</dd>
+            </dl>
+          </article>
+          <article>
+            <dl>
+              <dt class="text-sm font-medium text-slate-500">Аккаунты</dt>
+              <dd class="mt-2 text-3xl font-semibold" data-testid="total-accounts">{{ summary.accounts_total }}</dd>
+            </dl>
+          </article>
+          <article>
+            <dl>
+              <dt class="text-sm font-medium text-slate-500">Активных задач</dt>
+              <dd class="mt-2 text-3xl font-semibold" data-testid="active-tasks">{{ summary.active_tasks }}</dd>
+            </dl>
+          </article>
+          <article>
+            <dl>
+              <dt class="text-sm font-medium text-slate-500">Отслеживаемых каналов</dt>
+              <dd class="mt-2 text-3xl font-semibold" data-testid="total-channels">{{ summary.channels_total }}</dd>
+            </dl>
+          </article>
+        </div>
+        <div class="p-6 text-sm text-slate-500">
+          Всего задач в системе — <span class="font-semibold text-slate-700" data-testid="total-tasks">{{ summary.tasks_total }}</span>.
+          Управление пользователями и проектами доступно через API и HTMX-компоненты.
+        </div>
+      </section>
+
+      <section class="mt-10">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-semibold">Последние проекты</h2>
+          <a href="/docs" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Документация API</a>
+        </div>
+
+        {% if projects %}
+        <div class="grid gap-6 md:grid-cols-2">
+          {% for project in projects %}
+          <article class="bg-white rounded-xl shadow p-6" data-testid="project-card">
+            <div class="flex items-start justify-between">
+              <div>
+                <h3 class="text-xl font-semibold text-slate-900">{{ project.name }}</h3>
+                <p class="text-sm text-slate-500">Создан: {{ project.created_at.strftime('%d.%m.%Y %H:%M') if project.created_at else '—' }}</p>
+              </div>
+              <span class="px-3 py-1 text-xs font-semibold rounded-full {{ project.status_class }}">
+                {{ project.status_label }}
+              </span>
+            </div>
+            <dl class="mt-4 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <dt class="text-slate-500">Аккаунты</dt>
+                <dd class="mt-1 text-lg font-medium">{{ project.accounts }}</dd>
+              </div>
+              <div>
+                <dt class="text-slate-500">Каналы</dt>
+                <dd class="mt-1 text-lg font-medium">{{ project.channels }}</dd>
+              </div>
+              <div>
+                <dt class="text-slate-500">Задачи</dt>
+                <dd class="mt-1 text-lg font-medium">{{ project.tasks }}</dd>
+              </div>
+              <div>
+                <dt class="text-slate-500">Активно</dt>
+                <dd class="mt-1 text-lg font-medium">{{ project.active_tasks }}</dd>
+              </div>
+            </dl>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-slate-600 bg-white rounded-xl shadow p-6">
+          Пока нет проектов для отображения. Создайте проект через API, чтобы увидеть метрики.
+        </p>
+        {% endif %}
       </section>
     </main>
   </body>
