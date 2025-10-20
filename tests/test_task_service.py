@@ -6,7 +6,9 @@ from tgac.api.models import core  # noqa: F401 - ensure models are registered
 from tgac.api.models.base import Base
 from tgac.api.models.core import (
     Account,
+    AccountChannelMap,
     AccountStatus,
+    Channel,
     Project,
     Task,
     TaskAssignment,
@@ -20,6 +22,7 @@ from tgac.api.services.tasks import (
     AssignmentSummary,
     InvalidFilter,
     ProjectMismatch,
+    TaskActivationBlocked,
     TaskNotFound,
     TaskService,
 )
@@ -67,11 +70,24 @@ def make_account(
     return account
 
 
-def make_task(session: Session, project_id: int, name: str) -> Task:
-    task = Task(project_id=project_id, name=name, mode=TaskMode.NEW_POSTS, status=TaskStatus.ON, config={})
+def make_task(
+    session: Session,
+    project_id: int,
+    name: str,
+    *,
+    status: TaskStatus = TaskStatus.ON,
+) -> Task:
+    task = Task(project_id=project_id, name=name, mode=TaskMode.NEW_POSTS, status=status, config={})
     session.add(task)
     session.flush()
     return task
+
+
+def make_channel(session: Session, project_id: int, title: str) -> Channel:
+    channel = Channel(project_id=project_id, title=title, username=None, active=True)
+    session.add(channel)
+    session.flush()
+    return channel
 
 
 def test_assign_accounts_enforces_request_limit():
@@ -261,5 +277,54 @@ def test_assign_accounts_invalid_status_filter():
         service = TaskService(session)
         with pytest.raises(InvalidFilter):
             service.assign_accounts(task.id, filters={"status": "UNKNOWN"})
+    finally:
+        session.close()
+
+
+def test_toggle_task_respects_channel_limit():
+    session = TestingSession()
+    try:
+        project = make_project(session, "toggle-limit")
+        task = make_task(session, project.id, "Toggle limit", status=TaskStatus.OFF)
+        account = make_account(session, project.id, "+90000000001")
+
+        session.add(TaskAssignment(task_id=task.id, account_id=account.id))
+
+        for index in range(3):
+            channel = make_channel(session, project.id, f"Channel {index}")
+            session.add(AccountChannelMap(account_id=account.id, channel_id=channel.id))
+
+        session.flush()
+
+        service = TaskService(session, settings_defaults={"MAX_CHANNELS_PER_ACCOUNT": 2})
+
+        with pytest.raises(TaskActivationBlocked) as exc:
+            service.toggle_task(task.id)
+
+        assert str(exc.value).startswith("Account")
+    finally:
+        session.close()
+
+
+def test_toggle_task_allows_activation_within_limit():
+    session = TestingSession()
+    try:
+        project = make_project(session, "toggle-ok")
+        task = make_task(session, project.id, "Toggle ok", status=TaskStatus.OFF)
+        account = make_account(session, project.id, "+90000000002")
+
+        session.add(TaskAssignment(task_id=task.id, account_id=account.id))
+
+        for index in range(2):
+            channel = make_channel(session, project.id, f"Allowed {index}")
+            session.add(AccountChannelMap(account_id=account.id, channel_id=channel.id))
+
+        session.flush()
+
+        service = TaskService(session, settings_defaults={"MAX_CHANNELS_PER_ACCOUNT": 3})
+
+        toggled = service.toggle_task(task.id)
+
+        assert toggled.status == TaskStatus.ON
     finally:
         session.close()

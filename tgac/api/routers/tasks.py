@@ -79,13 +79,12 @@ def update_task(task_id: int, payload: TaskUpdateRequest, db: Session = Depends(
 
 @router.post("/{task_id}/toggle", response_model=DataResponse)
 def toggle_task(task_id: int, db: Session = Depends(get_db)) -> DataResponse:
-    task = db.get(Task, task_id)
-    if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+    service = TaskService(db)
+    try:
+        task = service.toggle_task(task_id)
+    except TaskServiceError as exc:  # pragma: no cover - FastAPI handles conversion
+        raise _handle_service_error(exc)
 
-    task.status = TaskStatus.OFF if task.status == TaskStatus.ON else TaskStatus.ON
-    db.commit()
-    db.refresh(task)
     return DataResponse(data={"id": task.id, "status": task.status.value})
 
 
