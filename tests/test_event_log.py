@@ -55,6 +55,24 @@ def test_null_logger_is_noop() -> None:
 
     logger.comment_planned(comment)
     logger.comment_sent(comment)
+    logger.comment_visibility_checked(comment, visible=True, checked_at=comment.sent_at)
+
+
+def test_jsonl_event_logger_records_visibility_checks(tmp_path) -> None:
+    path = tmp_path / "events.jsonl"
+    logger = JsonlEventLogger(path)
+
+    comment = _make_comment()
+    checked_at = comment.sent_at + timedelta(minutes=5)
+
+    logger.comment_visibility_checked(comment, visible=False, checked_at=checked_at)
+
+    record = json.loads(path.read_text(encoding="utf-8").strip())
+    assert record["type"] == "comment_visibility_checked"
+    assert record["comment_id"] == comment.id
+    assert record["visible"] is False
+    assert record["checked_at"] == checked_at.isoformat()
+    assert record["sent_at"] == comment.sent_at.isoformat()
 
 
 def test_jsonl_event_logger_prune_retains_recent_records(tmp_path) -> None:
