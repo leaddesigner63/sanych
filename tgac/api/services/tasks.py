@@ -5,9 +5,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Sequence
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ..models.core import Account, AccountStatus, Task, TaskAssignment
+from ..models.core import (
+    Account,
+    AccountChannelMap,
+    AccountStatus,
+    Task,
+    TaskAssignment,
+    TaskStatus,
+)
+from ..services.settings import SettingsService
 
 MAX_ASSIGNMENTS_PER_REQUEST = 50
 
@@ -36,6 +45,19 @@ class InvalidFilter(TaskServiceError):
     """Raised when provided filters are not valid."""
 
 
+class TaskActivationBlocked(TaskServiceError):
+    """Raised when a task cannot be toggled on due to channel limits."""
+
+    def __init__(self, account_id: int, count: int, limit: int) -> None:
+        message = (
+            f"Account {account_id} is linked to {count} channels, exceeding the limit {limit}"
+        )
+        super().__init__(message, status_code=409)
+        self.account_id = account_id
+        self.count = count
+        self.limit = limit
+
+
 @dataclass
 class AssignmentSummary:
     """Details about the performed assignment operation."""
@@ -60,6 +82,29 @@ class TaskService:
 
     db: Session
     max_assignments_per_request: int = MAX_ASSIGNMENTS_PER_REQUEST
+    settings_defaults: Mapping[str, object] | None = None
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def toggle_task(self, task_id: int) -> Task:
+        """Toggle task status while enforcing channel limits when enabling."""
+
+        task = self._load_task(task_id)
+
+        if task.status == TaskStatus.ON:
+            task.status = TaskStatus.OFF
+            self.db.commit()
+            self.db.refresh(task)
+            return task
+
+        self._ensure_channel_capacity(task)
+
+        task.status = TaskStatus.ON
+        self.db.commit()
+        self.db.refresh(task)
+        return task
 
     def _load_task(self, task_id: int) -> Task:
         task = self.db.get(Task, task_id)
@@ -146,6 +191,48 @@ class TaskService:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+    def _ensure_channel_capacity(self, task: Task) -> None:
+        """Ensure assigned accounts are within MAX_CHANNELS_PER_ACCOUNT before enabling."""
+
+        settings = SettingsService(self.db, defaults=self.settings_defaults)
+        effective = settings.get_effective(task.project_id)
+        limit_raw = effective.get("MAX_CHANNELS_PER_ACCOUNT", 0)
+        try:
+            limit = int(limit_raw or 0)
+        except (TypeError, ValueError):  # pragma: no cover - defensive guard
+            limit = 0
+
+        if limit <= 0:
+            return
+
+        account_ids = {
+            account_id
+            for (account_id,) in (
+                self.db.query(TaskAssignment.account_id)
+                .filter(TaskAssignment.task_id == task.id)
+                .all()
+            )
+            if account_id is not None
+        }
+
+        if not account_ids:
+            return
+
+        counts = dict(
+            self.db.query(
+                AccountChannelMap.account_id,
+                func.count(AccountChannelMap.channel_id),
+            )
+            .filter(AccountChannelMap.account_id.in_(account_ids))
+            .group_by(AccountChannelMap.account_id)
+            .all()
+        )
+
+        for account_id in account_ids:
+            current = int(counts.get(account_id, 0))
+            if current > limit:
+                raise TaskActivationBlocked(account_id, current, limit)
+
     def _resolve_candidate_ids(
         self,
         task: Task,
@@ -239,6 +326,7 @@ __all__ = [
     "AccountNotFound",
     "ProjectMismatch",
     "InvalidFilter",
+    "TaskActivationBlocked",
     "AssignmentSummary",
     "MAX_ASSIGNMENTS_PER_REQUEST",
 ]
