@@ -20,6 +20,10 @@ def _make_comment() -> Comment:
     comment.result = CommentResult.SUCCESS
     comment.error_code = None
     comment.error_msg = None
+    comment.message_id = 505
+    comment.thread_id = 909
+    comment.visible = True
+    comment.visibility_checked_at = comment.sent_at
     return comment
 
 
@@ -47,6 +51,8 @@ def test_jsonl_event_logger_writes_records(tmp_path) -> None:
     assert second["result"] == CommentResult.SUCCESS.value
     assert second["sent_at"] == comment.sent_at.isoformat()
     assert second["planned_at"] == comment.planned_at.isoformat()
+    assert second["message_id"] == comment.message_id
+    assert second["thread_id"] == comment.thread_id
 
 
 def test_null_logger_is_noop() -> None:
@@ -73,6 +79,8 @@ def test_jsonl_event_logger_records_visibility_checks(tmp_path) -> None:
     assert record["visible"] is False
     assert record["checked_at"] == checked_at.isoformat()
     assert record["sent_at"] == comment.sent_at.isoformat()
+    assert record["message_id"] == comment.message_id
+    assert record["thread_id"] == comment.thread_id
 
 
 def test_jsonl_event_logger_prune_retains_recent_records(tmp_path) -> None:

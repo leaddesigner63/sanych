@@ -119,6 +119,10 @@ def create_project_with_entities(
         planned_at=utcnow() - timedelta(minutes=5),
         template="Hi",
         rendered="Hi there",
+        message_id=4242,
+        thread_id=101,
+        visible=True,
+        visibility_checked_at=utcnow(),
     )
     session.add(comment)
     session.commit()
@@ -203,6 +207,13 @@ def test_export_service_creates_zip_archive():
 
         comments_data = json.loads(archive.read("comments.json"))
         assert {entry["post_id"] for entry in comments_data} == {comment.post_id}
+        assert comments_data[0]["message_id"] == comment.message_id
+        assert comments_data[0]["thread_id"] == comment.thread_id
+        assert comments_data[0]["visible"] is True
+        assert (
+            comments_data[0]["visibility_checked_at"]
+            == comment.visibility_checked_at.isoformat()
+        )
 
         metrics_reader = csv.DictReader(archive.read("metrics.csv").decode("utf-8").splitlines())
         metrics_rows = {row["key"]: row["value"] for row in metrics_reader}

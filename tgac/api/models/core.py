@@ -234,6 +234,8 @@ class Comment(Base):
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"))
     channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
     post_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    message_id: Mapped[Optional[int]] = mapped_column(Integer)
+    thread_id: Mapped[Optional[int]] = mapped_column(Integer)
     template: Mapped[Optional[str]] = mapped_column(Text)
     rendered: Mapped[Optional[str]] = mapped_column(Text)
     planned_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime())

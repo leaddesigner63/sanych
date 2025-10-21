@@ -231,6 +231,8 @@ def test_send_comment_records_outcome():
                 error_code="FLOOD",
                 error_message="Rate limit",
                 rendered="Rendered",
+                message_id=777,
+                thread_id=888,
             ),
         )
 
@@ -243,6 +245,8 @@ def test_send_comment_records_outcome():
         assert comment.error_msg == "Rate limit"
         assert comment.rendered == "Rendered"
         assert comment.sent_at is not None
+        assert comment.message_id == 777
+        assert comment.thread_id == 888
     finally:
         session.close()
 
