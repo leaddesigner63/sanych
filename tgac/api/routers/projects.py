@@ -28,6 +28,32 @@ def list_projects(
     return DataResponse(data=[_serialize_project(project) for project in projects])
 
 
+@router.get("/quota", response_model=DataResponse)
+def project_quota(
+    user_id: int | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DataResponse:
+    """Return project quota information for the current or specified user."""
+
+    target_user_id = current_user.id
+    if user_id is not None:
+        if current_user.role != UserRole.ADMIN and user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Project quota unavailable for requested user",
+            )
+        target_user_id = user_id
+
+    service = ProjectService(db)
+    try:
+        summary = service.quota_summary(target_user_id)
+    except ProjectServiceError as exc:  # pragma: no cover - FastAPI handles HTTP conversion
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+    return DataResponse(data=summary)
+
+
 @router.post("", response_model=DataResponse, status_code=status.HTTP_201_CREATED)
 def create_project(
     payload: ProjectCreateRequest,

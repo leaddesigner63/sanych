@@ -9,7 +9,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from tgac.api.models.base import Base
 from tgac.api.models.core import Project, ProjectStatus, User, UserRole
-from tgac.api.routers.projects import create_project, delete_project, list_projects, update_project
+from tgac.api.routers.projects import (
+    create_project,
+    delete_project,
+    list_projects,
+    project_quota,
+    update_project,
+)
 from tgac.api.schemas.projects import ProjectCreateRequest, ProjectUpdateRequest
 
 
@@ -18,6 +24,7 @@ def setup_module(module):
     os.environ.setdefault("BASE_URL", "http://localhost")
     os.environ.setdefault("DB_URL", "sqlite:///:memory:")
     os.environ.setdefault("SESSION_SECRET_KEY", "test-secret")
+    os.environ.setdefault("DEFAULT_PROJECT_QUOTA", "5")
 
     engine = create_engine("sqlite:///:memory:", future=True)
     TestingSession = sessionmaker(bind=engine, class_=Session)
@@ -182,6 +189,86 @@ def test_list_projects_scoped_by_user_and_admin_can_view_all():
 
         admin_listing = list_projects(current_user=admin, db=session)
         assert {item["name"] for item in admin_listing.data} == {"Owner", "Other"}
+    finally:
+        session.close()
+
+
+def test_project_quota_returns_remaining_for_current_user():
+    session = fresh_session()
+    try:
+        user = make_user(session, "quota-user")
+
+        summary = project_quota(current_user=user, db=session)
+        assert summary.data == {
+            "user_id": user.id,
+            "limit": 5,
+            "used": 0,
+            "remaining": 5,
+        }
+
+        create_project(
+            ProjectCreateRequest(user_id=user.id, name="One", status=ProjectStatus.ACTIVE),
+            current_user=user,
+            db=session,
+        )
+
+        updated = project_quota(current_user=user, db=session)
+        assert updated.data["used"] == 1
+        assert updated.data["remaining"] == 4
+    finally:
+        session.close()
+
+
+def test_project_quota_admin_can_view_other_user():
+    session = fresh_session()
+    try:
+        admin = make_user(session, "admin-quota")
+        admin.role = UserRole.ADMIN
+        session.flush()
+
+        target = make_user(session, "target-quota")
+        create_project(
+            ProjectCreateRequest(
+                user_id=target.id,
+                name="Target Project",
+                status=ProjectStatus.ACTIVE,
+            ),
+            current_user=target,
+            db=session,
+        )
+
+        summary = project_quota(user_id=target.id, current_user=admin, db=session)
+        assert summary.data["user_id"] == target.id
+        assert summary.data["used"] == 1
+    finally:
+        session.close()
+
+
+def test_project_quota_non_admin_forbidden_for_other_user():
+    session = fresh_session()
+    try:
+        owner = make_user(session, "quota-owner")
+        other = make_user(session, "quota-other")
+
+        with pytest.raises(HTTPException) as exc:
+            project_quota(user_id=other.id, current_user=owner, db=session)
+
+        assert exc.value.status_code == 403
+    finally:
+        session.close()
+
+
+def test_project_quota_admin_missing_user_raises_not_found():
+    session = fresh_session()
+    try:
+        admin = make_user(session, "admin-missing")
+        admin.role = UserRole.ADMIN
+        session.flush()
+
+        with pytest.raises(HTTPException) as exc:
+            project_quota(user_id=999, current_user=admin, db=session)
+
+        assert exc.value.status_code == 404
     finally:
         session.close()
 
