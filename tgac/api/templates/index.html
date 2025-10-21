@@ -85,6 +85,23 @@
                 <dd class="mt-1 text-lg font-medium">{{ project.active_tasks }}</dd>
               </div>
             </dl>
+            <div class="mt-6 border-t border-slate-100 pt-4">
+              <h4 class="text-sm font-semibold text-slate-600">Качество комментариев</h4>
+              <dl class="mt-3 grid gap-4 sm:grid-cols-3 text-sm">
+                <div>
+                  <dt class="text-slate-500">Всего</dt>
+                  <dd class="mt-1 text-lg font-medium" data-testid="project-metrics-comments-total">{{ project.metrics.comments_total }}</dd>
+                </div>
+                <div>
+                  <dt class="text-slate-500">Успешность</dt>
+                  <dd class="mt-1 text-lg font-medium" data-testid="project-metrics-success-rate">{{ project.metrics.comment_success_rate }}</dd>
+                </div>
+                <div>
+                  <dt class="text-slate-500">Видимость</dt>
+                  <dd class="mt-1 text-lg font-medium" data-testid="project-metrics-visibility-rate">{{ project.metrics.comment_visibility_rate }}</dd>
+                </div>
+              </dl>
+            </div>
           </article>
           {% endfor %}
         </div>

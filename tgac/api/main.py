@@ -27,9 +27,20 @@ from .routers import (
 )
 from .deps import get_db
 from .models.core import Account, Channel, Project, ProjectStatus, Task, TaskStatus
+from .services.metrics import MetricsService, MetricsServiceError, ProjectMetric
 
 app = FastAPI(title="TG Commenting Combiner")
 templates = Jinja2Templates(directory="tgac/api/templates")
+
+
+def _format_rate(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value * 100:.1f}%"
+
+
+def _metric_lookup(metrics: list[ProjectMetric]) -> dict[str, ProjectMetric]:
+    return {metric.key: metric for metric in metrics}
 
 
 def _project_cards(db: Session, limit: int = 5) -> list[dict]:
@@ -74,9 +85,18 @@ def _project_cards(db: Session, limit: int = 5) -> list[dict]:
         },
     )
 
+    metrics_service = MetricsService(db)
     cards: list[dict] = []
     for project in projects:
         project_id = project.id
+        try:
+            metrics_list = metrics_service.collect_project_metrics(project_id)
+        except MetricsServiceError:
+            metrics_list = []
+        metrics = _metric_lookup(metrics_list)
+        comments_total_metric = metrics.get("comments_total")
+        success_rate_metric = metrics.get("comment_success_rate")
+        visibility_rate_metric = metrics.get("comment_visibility_rate")
         cards.append(
             {
                 "id": project_id,
@@ -89,6 +109,15 @@ def _project_cards(db: Session, limit: int = 5) -> list[dict]:
                 "channels": channel_counts.get(project_id, 0),
                 "tasks": task_counts.get(project_id, 0),
                 "active_tasks": active_task_counts.get(project_id, 0),
+                "metrics": {
+                    "comments_total": comments_total_metric.value if comments_total_metric else 0,
+                    "comment_success_rate": _format_rate(
+                        success_rate_metric.value if success_rate_metric else None
+                    ),
+                    "comment_visibility_rate": _format_rate(
+                        visibility_rate_metric.value if visibility_rate_metric else None
+                    ),
+                },
             }
         )
 
