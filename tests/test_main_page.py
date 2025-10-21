@@ -100,6 +100,9 @@ def test_main_page_shows_summary(tmp_path):
         assert 'data-testid="total-accounts">2<' in html
         assert 'data-testid="active-tasks">1<' in html
         assert 'data-testid="total-channels">2<' in html
+        assert 'data-testid="project-metrics-comments-total">0<' in html
+        assert 'data-testid="project-metrics-success-rate">—<' in html
+        assert 'data-testid="project-metrics-visibility-rate">—<' in html
     finally:
         deps._engine_instance = None  # type: ignore[attr-defined]
         _restore_env(snapshot)
