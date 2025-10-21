@@ -78,6 +78,25 @@ class ProjectService:
         remaining = quota - used
         return max(0, remaining)
 
+    def quota_summary(self, user: User | int) -> dict[str, Optional[int]]:
+        """Return quota information (limit/used/remaining) for a user."""
+
+        if isinstance(user, User):
+            user_obj = self._get_user(user.id)
+        else:
+            user_obj = self._get_user(int(user))
+
+        quota = self._effective_quota(user_obj)
+        used = self._count_projects(user_obj.id)
+        remaining = self.remaining_quota(user_obj)
+
+        return {
+            "user_id": user_obj.id,
+            "limit": quota,
+            "used": used,
+            "remaining": remaining,
+        }
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
