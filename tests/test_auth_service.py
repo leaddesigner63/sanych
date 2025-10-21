@@ -1,11 +1,15 @@
+from datetime import timedelta
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from tgac.api.models.base import Base
 from tgac.api.models import core  # noqa: F401
+from tgac.api.models.base import Base
+from tgac.api.models.core import LoginToken, LoginTokenStatus
 from tgac.api.services.auth_flow import AuthService
 from tgac.api.utils.settings import Settings
+from tgac.api.utils.time import utcnow
 
 
 def setup_module(module):
@@ -57,3 +61,37 @@ def test_find_or_create_user_updates_existing_chat(session):
     updated = service.find_or_create_user("admin_username", telegram_id=222)
     assert updated.id == first.id
     assert updated.telegram_id == 222
+
+
+def test_cleanup_expired_tokens_removes_stale_entries(session):
+    service = AuthService(session)
+    now = utcnow()
+    stale_time = now - timedelta(minutes=60)
+
+    session.query(LoginToken).delete()
+    session.commit()
+
+    session.add_all(
+        [
+            LoginToken(token="stale-pending", created_at=stale_time),
+            LoginToken(
+                token="stale-expired",
+                status=LoginTokenStatus.EXPIRED,
+                created_at=stale_time,
+            ),
+            LoginToken(token="recent", created_at=now - timedelta(minutes=5)),
+            LoginToken(
+                token="confirmed",
+                status=LoginTokenStatus.CONFIRMED,
+                created_at=stale_time,
+                confirmed_at=stale_time,
+            ),
+        ]
+    )
+    session.commit()
+
+    removed = service.cleanup_expired_tokens()
+
+    assert removed == 2
+    remaining = {token.token for token in session.query(LoginToken).all()}
+    assert remaining == {"recent", "confirmed"}
