@@ -42,6 +42,8 @@ class SendResult:
     rendered: str | None = None
     error_code: str | None = None
     error_message: str | None = None
+    message_id: int | None = None
+    thread_id: int | None = None
 
     @property
     def success(self) -> bool:
@@ -267,6 +269,8 @@ class CommentEngine:
             comment.rendered = outcome.rendered
         comment.error_code = outcome.error_code
         comment.error_msg = outcome.error_message
+        comment.message_id = outcome.message_id
+        comment.thread_id = outcome.thread_id
 
         self.db.commit()
         self.db.refresh(comment)

@@ -243,6 +243,8 @@ class ExportService:
                 "task_id": comment.task_id,
                 "channel_id": comment.channel_id,
                 "post_id": comment.post_id,
+                "message_id": comment.message_id,
+                "thread_id": comment.thread_id,
                 "result": comment.result.value if comment.result else None,
                 "planned_at": _serialize_datetime(comment.planned_at),
                 "sent_at": _serialize_datetime(comment.sent_at),
@@ -250,6 +252,8 @@ class ExportService:
                 "rendered": comment.rendered,
                 "error_code": comment.error_code,
                 "error_msg": comment.error_msg,
+                "visible": comment.visible,
+                "visibility_checked_at": _serialize_datetime(comment.visibility_checked_at),
             }
             for comment in comments
         ]
