@@ -22,6 +22,51 @@
 
 Дополнительные команды смотрите в `Makefile`.
 
+## Конфигурация окружения
+
+Переменные окружения описаны в `.env.example`. При развёртывании на сервере выполните следующие шаги:
+
+1. **Путь до проекта.** Предположим, код расположен в `/opt/tgac`. Создайте директории для БД и логов:
+
+   ```bash
+   sudo mkdir -p /opt/tgac/data /opt/tgac/logs
+   sudo chown -R <user>:<group> /opt/tgac
+   ```
+
+2. **Заполните `.env`.** Скопируйте шаблон и откройте его для редактирования:
+
+   ```bash
+   cp /opt/tgac/.env.example /opt/tgac/.env
+   nano /opt/tgac/.env
+   ```
+
+3. **Ключи и токены.**
+   - `TELEGRAM_BOT_TOKEN` — создайте бота через @BotFather и скопируйте токен.
+   - `SESSION_SECRET_KEY` — сгенерируйте новый ключ (Fernet base64) командой:
+
+     ```bash
+     python -c "import base64, secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+     ```
+
+   - `OPENAI_API_KEY` — укажите ключ OpenAI (оставьте пустым, если генерация не используется).
+   - `SMS_ACTIVATE_API_KEY`, `BRIGHTDATA_USERNAME`, `BRIGHTDATA_PASSWORD` — заполните при наличии интеграций.
+
+4. **База данных.** Убедитесь, что `DB_URL` указывает на абсолютный путь:
+
+   ```env
+   DB_URL=sqlite:////opt/tgac/data/db.sqlite3
+   ```
+
+5. **Настройка домена.** Обновите `BASE_URL`, `TZ`, `LOG_LEVEL` под свою инфраструктуру.
+
+6. **Секреты и права доступа.** Ограничьте доступ к файлу `.env`:
+
+   ```bash
+   chmod 600 /opt/tgac/.env
+   ```
+
+При изменении конфигурации перезапускайте соответствующие systemd-сервисы (`sudo systemctl restart tgac-api.service` и др.).
+
 ## Лицензия
 
 Проект распространяется по лицензии MIT, текст доступен в файле `LICENSE`.
