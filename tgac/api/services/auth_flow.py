@@ -21,6 +21,7 @@ class AuthService:
         self.serializer = URLSafeSerializer(self.settings.session_secret_key, salt="tgac-login")
 
     def create_login_token(self) -> LoginToken:
+        self.cleanup_expired_tokens()
         token = secrets.token_urlsafe(16)
         login_token = LoginToken(token=token)
         self.db.add(login_token)
@@ -77,6 +78,21 @@ class AuthService:
         self.db.commit()
         self.db.refresh(user)
         return user
+
+    def cleanup_expired_tokens(self) -> int:
+        """Remove stale login tokens that exceeded their TTL."""
+
+        ttl = timedelta(minutes=self.settings.telegram_deeplink_ttl_min)
+        cutoff = utcnow() - ttl
+        deleted = (
+            self.db.query(LoginToken)
+            .filter(LoginToken.status != LoginTokenStatus.CONFIRMED)
+            .filter(LoginToken.created_at < cutoff)
+            .delete(synchronize_session=False)
+        )
+        if deleted:
+            self.db.commit()
+        return int(deleted)
 
 
 def login_token_response(token: LoginToken) -> DataResponse:
